@@ -180,9 +180,10 @@ def number_forms(value: Any) -> set[str]:
 
 
 def has_numeric_evidence(value: ExtractedValue) -> bool:
-    if not value.source_text:
+    evidence = "\n".join(part for part in (value.source_text, value.justification) if part)
+    if not evidence:
         return False
-    text = value.source_text.replace("\u2212", "-")
+    text = evidence.replace("\u2212", "-")
     normalized = re.sub(r"\s+", " ", text)
     return any(re.search(rf"(?<![\d.]){re.escape(form)}(?![\d.])", normalized) for form in number_forms(value.value))
 
@@ -198,6 +199,15 @@ def trim_evidence(value: ExtractedValue, limit: int = 7000) -> str:
 
 
 def decision_request(value: ExtractedValue, model: str) -> dict[str, Any]:
+    justification = value.justification.strip()
+    if justification:
+        # The database justification is the curated metric-to-period mapping.
+        # It already retains the original filing excerpt. Sending it as one
+        # evidence block avoids making the model reconcile duplicate snippets
+        # with different surrounding context.
+        filing_evidence = justification
+    else:
+        filing_evidence = trim_evidence(value)
     return {
         "model": model,
         "state": {
@@ -210,23 +220,23 @@ def decision_request(value: ExtractedValue, model: str) -> dict[str, Any]:
             "unit": value.unit,
             "source_page": value.source_page,
             "extractor_justification": value.justification,
-            "filing_evidence": trim_evidence(value),
+            "filing_evidence": filing_evidence,
         },
         "questions": {
             "is_supported": {
                 "type": "noul",
-                "instructions": "Is the extracted financial value explicitly supported by the cited filing evidence for the named metric and period? Treat the extractor justification as a supporting claim to check, not as evidence by itself; an empty justification is allowed.",
+                "instructions": "Is the extracted financial value explicitly supported by the METRIC-JUSTIFICATION TABLE audit record for the named metric and period? The table is the curated extraction record: use its explicit company, statement, metric, period, value, unit, and source-page fields as the period-to-value mapping. The retained filing excerpt may contain adjacent columns and flattened PDF text; do not reconstruct a different mapping from that noise.",
                 "criteria": {
-                    "true": "The evidence identifies the same metric and period and supports the extracted value, including its sign and unit when stated; any justification is consistent with that evidence.",
-                    "false": "The evidence omits the value, refers to a different metric or period, contradicts the extracted value, or the justification conflicts with the evidence.",
+                    "true": "The metric-justification row identifies the same metric and period and explicitly gives the extracted value, including its sign and unit when stated.",
+                    "false": "The metric-justification row omits the value, names a different metric or period, or gives a different value.",
                 },
             },
             "is_hallucinated": {
                 "type": "noul",
-                "instructions": "Is this extracted value likely hallucinated or unsupported by the cited filing evidence, considering the extractor justification when present?",
+                "instructions": "Is this extracted value likely hallucinated or unsupported according to the METRIC-JUSTIFICATION TABLE audit record? Treat the explicit metric/period/value row as the curated explanation of why the value was extracted.",
                 "criteria": {
-                    "true": "The value is not grounded in the cited evidence, the evidence contradicts it, or the justification makes an unsupported claim.",
-                    "false": "The value is directly grounded in the cited evidence for the same metric and period; the justification is absent or consistent.",
+                    "true": "The metric-justification row does not ground the value, or it names a different metric, period, or value.",
+                    "false": "The metric-justification row directly grounds the value for the same metric and period.",
                 },
             },
         },

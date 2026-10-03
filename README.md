@@ -19,7 +19,7 @@
  uv run python export.py
  ```
 
- This writes `10k_financial_statements.xlsx` with coverage, reconstructed statements by company/year, all metrics, filing metadata, and source pages. Use `uv run python export.py --output my_export.xlsx` for a different path.
+ This writes `10k_financial_statements.xlsx` with one sheet per company/statement pair. Each sheet contains all available fiscal years as columns. Use `uv run python export.py --output my_export.xlsx` for a different path.
 
  ## Extraction evaluation methodology
 

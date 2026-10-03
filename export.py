@@ -36,60 +36,43 @@ def style_sheet(writer: pd.ExcelWriter, name: str, frame: pd.DataFrame, widths: 
         worksheet.set_column(index, index, width)
 
 
-def statement_frame(company: str, year: int, category: str) -> pd.DataFrame:
-    frame = load("""SELECT m.metric AS 'Line item', m.period, m.value, m.source_page AS 'Source page'
+def statement_frame(company: str, category: str) -> pd.DataFrame:
+    frame = load("""SELECT m.metric AS 'Line item', f.fiscal_year AS filing_year, m.period, m.value, m.source_page AS 'Source page'
         FROM metrics m JOIN filings f ON f.id=m.filing_id
-        WHERE f.company=? AND f.fiscal_year=? AND m.category=?
-        ORDER BY m.source_page, m.id""", (company, int(year), category))
+        WHERE f.company=? AND m.category=?
+        ORDER BY f.fiscal_year DESC, m.source_page, m.id""", (company, category))
     if frame.empty:
         return frame
+    frame["period_year"] = frame["period"].str.extract(r"(\d{4})")[0].astype("Int64")
+    frame["period_priority"] = (frame["filing_year"] == frame["period_year"]).astype(int)
+    frame = frame.sort_values(["Line item", "period", "period_priority", "filing_year"], ascending=[True, True, False, False])
     frame = frame.drop_duplicates(["Line item", "period"], keep="first")
+    years = sorted((int(year) for year in frame["period_year"].dropna().unique()), reverse=True)
+    frame["period"] = frame["period_year"].map(lambda year: f"FY {int(year)}")
     wide = frame.pivot(index="Line item", columns="period", values="value").reset_index()
-    periods = list(dict.fromkeys(frame["period"].tolist()))
-    pages = frame.groupby("Line item", as_index=False)["Source page"].min()
-    return wide.merge(pages, on="Line item", how="left")[["Line item"] + periods + ["Source page"]]
+    periods = [f"FY {year}" for year in years]
+    return wide[["Line item"] + periods]
 
 
 def create_workbook(output: Path) -> Path:
     filings = load("SELECT id,company,filename,filing_date,fiscal_year,pages,parsed_at,sha256,path FROM filings ORDER BY company,fiscal_year")
-    metrics = load("""SELECT m.id,m.filing_id,f.company,f.fiscal_year,m.category,m.metric,m.period,m.value,m.unit,m.source_page,m.source_text
-        FROM metrics m JOIN filings f ON f.id=m.filing_id ORDER BY f.company,f.fiscal_year,m.category,m.source_page,m.id""")
-    pages = load("""SELECT p.id,p.filing_id,f.company,f.fiscal_year,p.page_number,p.text
-        FROM pages p JOIN filings f ON f.id=p.filing_id ORDER BY f.company,f.fiscal_year,p.page_number""")
-    coverage = metrics.groupby(["company", "fiscal_year", "category"], as_index=False).agg(Rows=("id", "count"))
-    coverage_pivot = coverage.pivot_table(index=["company", "fiscal_year"], columns="category", values="Rows", fill_value=0).reset_index()
-    coverage_pivot.columns.name = None
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(output, engine="xlsxwriter", datetime_format="yyyy-mm-dd") as writer:
         workbook = writer.book
         workbook.set_properties({"title": "10-K Financial Statements", "subject": "Curated financial statement data", "author": "10-K Financial Explorer", "comments": f"Exported {datetime.now().isoformat(timespec='seconds')}"})
-        overview = pd.DataFrame({"Field": ["Exported at", "Database", "Filings", "Pages", "Metrics", "Companies"], "Value": [datetime.now().isoformat(timespec="seconds"), str(DB_PATH), len(filings), len(pages), len(metrics), filings["company"].nunique()]})
-        overview.to_excel(writer, sheet_name="Read me", index=False, startrow=2)
-        style_sheet(writer, "Read me", overview, {"Field": 20, "Value": 58})
-        coverage_pivot.to_excel(writer, sheet_name="Coverage", index=False, startrow=2)
-        style_sheet(writer, "Coverage", coverage_pivot, {"company": 16, "fiscal_year": 14})
-
+        number_format = workbook.add_format({"num_format": "#,##0.00;[Red](#,##0.00)"})
         for company in sorted(filings.company.unique()):
-            for year in sorted(filings.loc[filings.company == company, "fiscal_year"].dropna().astype(int).unique()):
-                for category in STATEMENTS:
-                    frame = statement_frame(company, year, category)
-                    if frame.empty:
-                        continue
-                    name = f"{company[:8]}_{year}_{category[:5]}"[:31]
-                    frame.to_excel(writer, sheet_name=name, index=False, startrow=2)
-                    style_sheet(writer, name, frame, {"Line item": 42, "Source page": 13})
-                    worksheet = writer.sheets[name]
-                    number_format = workbook.add_format({"num_format": "#,##0.00;[Red](#,##0.00)"})
-                    if len(frame.columns) > 2:
-                        worksheet.set_column(1, len(frame.columns) - 2, 16, number_format)
-
-        metrics.to_excel(writer, sheet_name="All metrics", index=False, startrow=2)
-        style_sheet(writer, "All metrics", metrics, {"source_text": 70, "metric": 32, "category": 25})
-        filings.to_excel(writer, sheet_name="Filings", index=False, startrow=2)
-        style_sheet(writer, "Filings", filings, {"path": 55, "sha256": 68, "filename": 42})
-        pages.to_excel(writer, sheet_name="Source pages", index=False, startrow=2)
-        style_sheet(writer, "Source pages", pages, {"text": 100, "company": 16})
+            for category in STATEMENTS:
+                frame = statement_frame(company, category)
+                if frame.empty:
+                    continue
+                name = f"{company} - {category}"[:31]
+                frame.to_excel(writer, sheet_name=name, index=False, startrow=2)
+                style_sheet(writer, name, frame, {"Line item": 42})
+                worksheet = writer.sheets[name]
+                if len(frame.columns) > 1:
+                    worksheet.set_column(1, len(frame.columns) - 1, 18, number_format)
     return output
 
 
