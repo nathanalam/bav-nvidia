@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+from statement_layout import TOTAL_LINE_ITEMS, order_statement_frame
 
 DB_PATH = Path(__file__).parent / "filings.sqlite3"
 DEFAULT_OUTPUT = Path(__file__).parent / "10k_financial_statements.xlsx"
@@ -24,6 +25,7 @@ def style_sheet(writer: pd.ExcelWriter, name: str, frame: pd.DataFrame, widths: 
     worksheet = writer.sheets[name]
     header = workbook.add_format({"bold": True, "font_color": "white", "bg_color": "#17365D", "border": 0})
     title = workbook.add_format({"bold": True, "font_size": 16, "font_color": "#17365D"})
+    total = workbook.add_format({"bold": True, "top": 1})
     worksheet.write(0, 0, name, title)
     worksheet.set_row(0, 24)
     worksheet.set_row(1, 8)
@@ -34,6 +36,9 @@ def style_sheet(writer: pd.ExcelWriter, name: str, frame: pd.DataFrame, widths: 
     for index, column in enumerate(frame.columns):
         width = (widths or {}).get(column, min(max(len(str(column)) + 2, int(frame[column].astype(str).str.len().quantile(.9)) + 2 if len(frame) else 12), 42))
         worksheet.set_column(index, index, width)
+    for row_index, label in enumerate(frame["Line item"], start=3):
+        if label in TOTAL_LINE_ITEMS:
+            worksheet.set_row(row_index, None, total)
 
 
 def statement_frame(company: str, category: str) -> pd.DataFrame:
@@ -51,7 +56,7 @@ def statement_frame(company: str, category: str) -> pd.DataFrame:
     frame["period"] = frame["period_year"].map(lambda year: f"FY {int(year)}")
     wide = frame.pivot(index="Line item", columns="period", values="value").reset_index()
     periods = [f"FY {year}" for year in years]
-    return wide[["Line item"] + periods]
+    return order_statement_frame(wide[["Line item"] + periods], category)
 
 
 def create_workbook(output: Path) -> Path:

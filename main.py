@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from statement_layout import order_statement_frame
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -86,7 +87,8 @@ def reconstructed_statement(company: str, year: int, category: str) -> pd.DataFr
     table = frame.pivot(index="metric", columns="period", values="value").reset_index().rename(columns={"metric": "Line item"})
     periods = list(dict.fromkeys(frame["period"].tolist()))
     pages = frame.groupby("metric", as_index=False)["source_page"].min().rename(columns={"metric": "Line item", "source_page": "Source page"})
-    return table.merge(pages, on="Line item", how="left")[["Line item"] + periods + ["Source page"]]
+    result = table.merge(pages, on="Line item", how="left")[["Line item"] + periods + ["Source page"]]
+    return order_statement_frame(result, category)
 
 
 def excel_export(company: str, year: int, statements: dict[str, pd.DataFrame]) -> bytes:
