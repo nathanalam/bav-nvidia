@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import io
+import json
 import re
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -35,9 +37,13 @@ def init_db(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS metrics (
             id INTEGER PRIMARY KEY, filing_id INTEGER NOT NULL, category TEXT,
             metric TEXT NOT NULL, period TEXT, value REAL, unit TEXT, source_page INTEGER,
-            source_text TEXT, FOREIGN KEY(filing_id) REFERENCES filings(id) ON DELETE CASCADE
+            source_text TEXT, justification TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY(filing_id) REFERENCES filings(id) ON DELETE CASCADE
         );
     """)
+    metric_columns = {row[1] for row in conn.execute("PRAGMA table_info(metrics)")}
+    if "justification" not in metric_columns:
+        conn.execute("ALTER TABLE metrics ADD COLUMN justification TEXT NOT NULL DEFAULT ''")
     conn.commit()
 
 
@@ -47,6 +53,23 @@ def query_df(sql: str, params=()) -> pd.DataFrame:
         return pd.read_sql_query(sql, conn, params=params)
     finally:
         conn.close()
+
+
+def database_json_export() -> bytes:
+    """Export every database table, including page-level source text, as JSON."""
+    conn = connect()
+    conn.row_factory = sqlite3.Row
+    payload = {
+        "format": "10k-financial-statements",
+        "version": 1,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "tables": {},
+    }
+    for table in ("filings", "pages", "metrics"):
+        rows = conn.execute(f"SELECT * FROM {table} ORDER BY id").fetchall()
+        payload["tables"][table] = [dict(row) for row in rows]
+    conn.close()
+    return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
 
 
 def reconstructed_statement(company: str, year: int, category: str) -> pd.DataFrame:
@@ -126,6 +149,15 @@ def app() -> None:
     if filings.empty:
         st.error("The curated database is missing. filings.sqlite3 must be present beside the app.")
         return
+    with st.sidebar:
+        st.subheader("Data export")
+        st.download_button(
+            "Download complete database as JSON",
+            data=database_json_export(),
+            file_name="10k_financial_statements.json",
+            mime="application/json",
+            use_container_width=True,
+        )
     controls = st.columns(3)
     company = controls[0].selectbox("Company", sorted(filings.company.unique()))
     years = sorted((int(year) for year in filings.loc[filings.company == company, "fiscal_year"].dropna().unique()), reverse=True)
