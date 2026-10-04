@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+UNIT_CAPTION = "Amounts in USD millions, except per-share data and share counts"
+
 STATEMENT_ORDER = {
     "Balance sheet": ["Cash and cash equivalents", "Marketable securities", "Short-term investments", "Accounts receivable", "Inventories", "Prepaid expenses and other current assets", "Total current assets", "Property, plant and equipment", "Operating lease right-of-use assets", "Operating lease assets", "Goodwill", "Intangible assets", "Deferred income tax assets", "Other assets", "Total assets", "Accounts payable", "Accrued and other current liabilities", "Other current liabilities", "Current portion of long-term debt", "Short-term debt", "Total current liabilities", "Long-term debt", "Other long-term liabilities", "Total liabilities", "Preferred stock", "Common stock", "Additional paid-in capital", "Treasury stock", "Accumulated other comprehensive income", "Accumulated deficit", "Retained earnings", "Stockholders' equity", "Total liabilities and equity"],
     "Income statement": ["Revenue", "Cost of sales", "Cost of revenue", "Total cost of sales", "Gross profit", "Research and development", "R&D", "Marketing, general and administrative", "Selling, general and administrative", "Amortization of acquisition-related intangibles", "Depreciation and amortization", "Licensing gain", "Total operating expenses", "Operating income", "Interest income", "Interest expense", "Other income (expense), net", "Income before income taxes and equity income", "Income before income taxes", "Income tax expense", "Equity income in investee", "Net income", "Basic EPS", "Diluted EPS", "Basic weighted average shares", "Diluted weighted average shares", "Weighted average shares"],

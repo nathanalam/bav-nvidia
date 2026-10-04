@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-from statement_layout import order_statement_frame
+from statement_layout import UNIT_CAPTION, order_statement_frame
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import getSampleStyleSheet
@@ -102,6 +102,7 @@ def excel_export(company: str, year: int, statements: dict[str, pd.DataFrame]) -
             frame.to_excel(writer, sheet_name=sheet, index=False, startrow=2)
             ws = writer.sheets[sheet]
             ws.write(0, 0, f"{company} — {category} — FY {year}", title)
+            ws.write(1, 0, UNIT_CAPTION)
             ws.freeze_panes(3, 1)
             ws.set_column(0, 0, 38)
             if len(frame.columns) > 2:
@@ -115,7 +116,7 @@ def pdf_export(company: str, year: int, statements: dict[str, pd.DataFrame]) -> 
     output = io.BytesIO()
     doc = SimpleDocTemplate(output, pagesize=landscape(letter), rightMargin=.35 * inch, leftMargin=.35 * inch, topMargin=.35 * inch, bottomMargin=.35 * inch)
     styles = getSampleStyleSheet()
-    story = [Paragraph(f"{company} — Financial Statements — FY {year}", styles["Title"]), Spacer(1, .12 * inch)]
+    story = [Paragraph(f"{company} — Financial Statements — FY {year}", styles["Title"]), Paragraph(UNIT_CAPTION, styles["Italic"]), Spacer(1, .12 * inch)]
     for category, frame in statements.items():
         story.append(Paragraph(category, styles["Heading2"]))
         if frame.empty:
@@ -167,7 +168,7 @@ def app() -> None:
     category = controls[2].selectbox("Statement", STATEMENT_CATEGORIES)
     frame = reconstructed_statement(company, year, category)
     st.subheader(f"{company} — {category} — FY {year}")
-    st.caption("Amounts are shown in the units stated in the filing. Source page is the filing page containing the curated row.")
+    st.caption(f"{UNIT_CAPTION}. Source page is the filing page containing the curated row.")
     if frame.empty:
         st.info("No curated rows are available for this company, year, and statement.")
     else:

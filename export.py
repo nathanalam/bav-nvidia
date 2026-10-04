@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-from statement_layout import TOTAL_LINE_ITEMS, order_statement_frame
+from statement_layout import TOTAL_LINE_ITEMS, UNIT_CAPTION, order_statement_frame
 
 DB_PATH = Path(__file__).parent / "filings.sqlite3"
 DEFAULT_OUTPUT = Path(__file__).parent / "10k_financial_statements.xlsx"
@@ -25,10 +25,12 @@ def style_sheet(writer: pd.ExcelWriter, name: str, frame: pd.DataFrame, widths: 
     worksheet = writer.sheets[name]
     header = workbook.add_format({"bold": True, "font_color": "white", "bg_color": "#17365D", "border": 0})
     title = workbook.add_format({"bold": True, "font_size": 16, "font_color": "#17365D"})
+    units = workbook.add_format({"italic": True, "font_color": "#666666"})
     total = workbook.add_format({"bold": True, "top": 1})
     worksheet.write(0, 0, name, title)
+    worksheet.write(1, 0, UNIT_CAPTION, units)
     worksheet.set_row(0, 24)
-    worksheet.set_row(1, 8)
+    worksheet.set_row(1, 18)
     for column_index, column in enumerate(frame.columns):
         worksheet.write(2, column_index, column, header)
     worksheet.freeze_panes(3, 1)
