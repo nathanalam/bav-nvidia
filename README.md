@@ -53,3 +53,16 @@
  - `metrics`: normalized line items, category, value, optional justification, and source page
 
  The statement dataset is curated from the statement pages in the attached filings. Important figures retain their source page in the app and in the exported reports.
+
+## Accounting and performance report
+
+`build_report.py` writes the Deliverable #3 draft, `reports/Alam_NVIDIA_Accounting_Performance.pdf`.
+
+The report uses the curated filing extracts in this repo. NVIDIA's fiscal year ends in January, so comparisons are aligned: NVIDIA FY t is paired with AMD and Intel FY t−1. Traditional and advanced DuPont both use ending equity, so the two ROE figures match. The five-year residual-income forecast uses the same engine for NVIDIA, AMD, and Intel: 15% tax, book equity rolling forward by net income, a 12% equity charge, and 3.5% terminal growth. Growth and margin paths differ by firm. No off-balance-sheet plug is added.
+
+```powershell
+uv sync
+uv run python build_report.py
+```
+
+The PDF is written to `reports/Alam_NVIDIA_Accounting_Performance.pdf`. Chart images are written to `reports/charts/` and are not source files.
