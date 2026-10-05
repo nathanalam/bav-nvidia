@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="snowflake-source" content="cortex-agent-authored" />
+  <title>Buy / Sell Report: NVIDIA, AMD, Intel — Oct 5, 2026</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 1100px; width: 100%; margin: 0 auto; padding: clamp(16px, 4vw, 32px); color: light-dark(#1e293b, #e2e8f0); background: light-dark(#fff, #0f172a); line-height: 1.6; }
+    h1 { font-size: 1.6rem; margin-bottom: 0.2em; color: light-dark(#0f172a, #f1f5f9); }
+    h2 { font-size: 1.25rem; margin-top: 1.8em; color: light-dark(#1e40af, #93c5fd); border-bottom: 2px solid light-dark(#dbeafe, #1e3a5f); padding-bottom: 0.3em; }
+    h3 { font-size: 1.05rem; margin-top: 1.2em; color: light-dark(#374151, #d1d5db); }
+    .subtitle { color: light-dark(#64748b, #94a3b8); margin-top: 0; font-size: 0.9rem; }
+    .warning { background: light-dark(#fef2f2, #1c0a0a); border-left: 3px solid light-dark(#ef4444, #dc2626); padding: 8px 14px; margin: 12px 0; font-size: 0.85rem; color: light-dark(#991b1b, #fca5a5); }
+    .info { background: light-dark(#eff6ff, #0c1929); border-left: 3px solid light-dark(#3b82f6, #60a5fa); padding: 8px 14px; margin: 12px 0; font-size: 0.85rem; color: light-dark(#1e40af, #93c5fd); }
+    .table-wrap { overflow-x: auto; margin: 12px 0; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+    th, td { border: 1px solid light-dark(#e2e8f0, #334155); padding: 6px 10px; text-align: right; white-space: nowrap; }
+    th { background: light-dark(#f1f5f9, #1e293b); font-weight: 600; text-align: center; }
+    th:first-child, td:first-child { text-align: left; }
+    .positive { color: light-dark(#15803d, #4ade80); }
+    .negative { color: light-dark(#dc2626, #f87171); }
+    .neutral { color: light-dark(#d97706, #fbbf24); }
+    .nvidia { color: light-dark(#16a34a, #4ade80); }
+    .amd { color: light-dark(#dc2626, #f87171); }
+    .intel { color: light-dark(#2563eb, #60a5fa); }
+    img, svg { max-width: 100%; height: auto; }
+    .verdict { border-radius: 10px; padding: 18px 22px; margin: 16px 0; }
+    .verdict h3 { margin-top: 0; font-size: 1.15rem; }
+    .verdict-buy { background: light-dark(#f0fdf4, #052e16); border: 2px solid light-dark(#22c55e, #166534); }
+    .verdict-hold { background: light-dark(#fffbeb, #1c1917); border: 2px solid light-dark(#f59e0b, #92400e); }
+    .verdict-sell { background: light-dark(#fef2f2, #1c0a0a); border: 2px solid light-dark(#ef4444, #991b1b); }
+    .verdict-tag { display: inline-block; padding: 3px 14px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; margin-bottom: 8px; }
+    .tag-buy { background: light-dark(#22c55e, #166534); color: #fff; }
+    .tag-hold { background: light-dark(#f59e0b, #92400e); color: #fff; }
+    .tag-sell { background: light-dark(#ef4444, #991b1b); color: #fff; }
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 10px 0; }
+    .kpi { background: light-dark(#f8fafc, #1e293b); border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 6px; padding: 8px 10px; text-align: center; }
+    .kpi-label { font-size: 0.68rem; color: light-dark(#64748b, #94a3b8); text-transform: uppercase; letter-spacing: 0.04em; }
+    .kpi-value { font-size: 1.1rem; font-weight: 700; }
+    .kpi-sub { font-size: 0.7rem; color: light-dark(#94a3b8, #64748b); }
+    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0; }
+    .pros, .cons { font-size: 0.85rem; }
+    .pros li { color: light-dark(#15803d, #4ade80); }
+    .cons li { color: light-dark(#dc2626, #f87171); }
+    .pros span, .cons span { color: light-dark(#1e293b, #e2e8f0); }
+    .scenario-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 8px 0; font-size: 0.85rem; }
+    .scenario-box { padding: 10px; border-radius: 6px; text-align: center; }
+    .sc-con { background: light-dark(#fef2f2, #1c0a0a); border: 1px solid light-dark(#fca5a5, #991b1b); }
+    .sc-base { background: light-dark(#fffbeb, #1c1917); border: 1px solid light-dark(#fbbf24, #92400e); }
+    .sc-agg { background: light-dark(#f0fdf4, #052e16); border: 1px solid light-dark(#86efac, #166534); }
+    .sc-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: light-dark(#64748b, #94a3b8); }
+    .sc-price { font-size: 1.3rem; font-weight: 700; }
+    .sc-detail { font-size: 0.72rem; color: light-dark(#64748b, #94a3b8); margin-top: 2px; }
+    .chart-box { position: relative; width: 100%; height: clamp(260px, 35vw, 340px); margin: 12px 0; }
+    .chart-box > canvas { width: 100% !important; height: 100% !important; }
+    @media (max-width: 600px) { .pros-cons { grid-template-columns: 1fr; } .scenario-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<h1>Short Interest &amp; Buy/Sell Report</h1>
+<p class="subtitle">NVIDIA / AMD / Intel &mdash; October 5, 2026 | Live market data + updated valuation model</p>
+
+<div class="warning">
+  <strong>Not investment advice.</strong> This is a modeling exercise. Actual investment decisions require broader analysis and individual risk assessment.
+</div>
+
+<!-- Why the original model was low -->
+<h2>Why the Original Fair Values Were Low</h2>
+<div class="info">
+  The first model produced fair values of $54 (NVIDIA), $44 (AMD), $8 (Intel) &mdash; dramatically below market prices. Here is why, and what the corrected model shows:
+</div>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Issue</th><th>Original Model</th><th>Corrected Model</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1. Stale base data</strong></td><td>Used 10-K filings (NVIDIA FY26 ending Jan '26; Rev $216B)</td><td>Uses TTM market data (Oct '26; Rev $303B &mdash; 40% higher)</td></tr>
+      <tr><td><strong>2. Revenue growth too conservative</strong></td><td>NVIDIA: 30% &rarr; 7% over 5 years</td><td>Base case: 45% &rarr; 10%, aligned with analyst 61% 3Y CAGR</td></tr>
+      <tr><td><strong>3. Cost of equity too high</strong></td><td>CAPM at face value: 13.5% (NVIDIA)</td><td>Range: 10.5&ndash;13.5%. Market implicitly discounts mega-cap tech at 10&ndash;11%</td></tr>
+      <tr><td><strong>4. Terminal growth too low</strong></td><td>3% for all companies</td><td>Range: 3&ndash;4.5%. AI-driven structural shift may sustain above-GDP growth</td></tr>
+      <tr><td><strong>5. Margin trajectory</strong></td><td>Assumed aggressive compression to 48%</td><td>Base case: gradual compression to 55%, consistent with platform lock-in</td></tr>
+    </tbody>
+  </table>
+</div>
+<p style="font-size:0.88rem;">The residual income model is extremely sensitive to cost of equity and terminal growth. A 2-3 percentage point shift in either changes fair value by 50-100%. The original model was a <em>floor</em> estimate under conservative assumptions; the scenarios below show the full range.</p>
+
+<!-- Market Snapshot -->
+<h2>Market Snapshot (Oct 5, 2026)</h2>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Metric</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Price</strong></td><td><strong>$236.16</strong></td><td><strong>$631.57</strong></td><td><strong>$117.40</strong></td></tr>
+      <tr><td>Market Cap</td><td>$5.70T</td><td>$1.03T</td><td>$616.9B</td></tr>
+      <tr><td>52-Week Change</td><td class="positive">+26.0%</td><td class="positive">+283.2%</td><td class="positive">+218.6%</td></tr>
+      <tr><td>TTM Revenue</td><td>$303.0B</td><td>$41.3B</td><td>$57.0B</td></tr>
+      <tr><td>TTM Net Income</td><td class="positive">$192.9B</td><td class="positive">$6.4B</td><td class="negative">-$11.3B</td></tr>
+      <tr><td>P/E (Trailing)</td><td>29.6x</td><td>161.8x</td><td>N/A (loss)</td></tr>
+      <tr><td>P/E (Forward)</td><td>19.3x</td><td>57.2x</td><td>70.9x</td></tr>
+      <tr><td>PEG Ratio</td><td class="positive">0.39</td><td>0.86</td><td>1.03</td></tr>
+      <tr><td>P/S</td><td>18.7x</td><td>25.1x</td><td>11.0x</td></tr>
+      <tr><td>P/FCF</td><td>44.5x</td><td>123.2x</td><td>221.5x</td></tr>
+      <tr><td>ROE</td><td class="positive">117.2%</td><td>10.2%</td><td class="negative">-10.7%</td></tr>
+      <tr><td>Gross Margin</td><td>74.7%</td><td>55.7%</td><td>38.9%</td></tr>
+      <tr><td>Operating Margin</td><td>65.2%</td><td>15.8%</td><td>7.8%</td></tr>
+      <tr><td>Debt / Equity</td><td>0.17</td><td>0.06</td><td>0.49</td></tr>
+      <tr><td>Altman Z-Score</td><td class="positive">34.85</td><td class="positive">15.21</td><td class="neutral">2.23</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Updated Scenario Valuations -->
+<h2>Updated Scenario Valuations</h2>
+<p style="font-size:0.88rem;">Three scenarios per company, using current TTM financials as the base. The model sensitivity to cost of equity (k<sub>e</sub>) and terminal growth (g<sub>&infin;</sub>) is shown explicitly.</p>
+
+<h3 class="nvidia">NVIDIA &mdash; Market: $236.16</h3>
+<div class="scenario-row">
+  <div class="scenario-box sc-con"><div class="sc-label">Conservative</div><div class="sc-price negative">$68.66</div><div class="sc-detail">k<sub>e</sub>=13.5%, g<sub>&infin;</sub>=3%<br>Rev grows 25%&rarr;6%<br>OM compresses to 50%</div></div>
+  <div class="scenario-box sc-base"><div class="sc-label">Base (Analyst-Aligned)</div><div class="sc-price neutral">$156.10</div><div class="sc-detail">k<sub>e</sub>=12%, g<sub>&infin;</sub>=4%<br>Rev grows 45%&rarr;10%<br>OM to 55%</div></div>
+  <div class="scenario-box sc-agg"><div class="sc-label">Aggressive</div><div class="sc-price positive">$272.37</div><div class="sc-detail">k<sub>e</sub>=10.5%, g<sub>&infin;</sub>=4.5%<br>Rev grows 55%&rarr;12%<br>OM stays 58%+</div></div>
+</div>
+<p style="font-size:0.85rem;">Market price of $236 sits between the Base ($156) and Aggressive ($272) scenarios. To justify $236, you need: aggressive revenue growth (55%&rarr;12%), margins above 58%, k<sub>e</sub> near 10.5&ndash;11%, and terminal growth of 3.5&ndash;4%. This implies the market sees NVIDIA as a lower-risk franchise than its beta suggests &mdash; a plausible view given its monopoly-like position in AI training compute.</p>
+
+<h3 class="amd">AMD &mdash; Market: $631.57</h3>
+<div class="scenario-row">
+  <div class="scenario-box sc-con"><div class="sc-label">Conservative</div><div class="sc-price negative">$48.28</div><div class="sc-detail">k<sub>e</sub>=13.5%, g<sub>&infin;</sub>=3%<br>Rev grows 20%&rarr;8%<br>OM to 24%</div></div>
+  <div class="scenario-box sc-base"><div class="sc-label">Base (Analyst-Aligned)</div><div class="sc-price negative">$131.64</div><div class="sc-detail">k<sub>e</sub>=12%, g<sub>&infin;</sub>=4%<br>Rev grows 35%&rarr;12%<br>OM to 30%</div></div>
+  <div class="scenario-box sc-agg"><div class="sc-label">Aggressive</div><div class="sc-price negative">$292.43</div><div class="sc-detail">k<sub>e</sub>=10.5%, g<sub>&infin;</sub>=4.5%<br>Rev grows 50%&rarr;15%<br>OM to 35%</div></div>
+</div>
+<p style="font-size:0.85rem;">Even the most aggressive scenario ($292) reaches only 46% of the market price ($632). To justify $632, our reverse-engineering requires k<sub>e</sub>=8% with g<sub>&infin;</sub>=5% &mdash; a cost of equity <em>below the risk-free rate plus any reasonable premium</em>. <strong>No standard fundamental model justifies AMD's current price.</strong> The market is pricing in either a transformative AI-driven revenue trajectory beyond what analysts model, or the stock is significantly ahead of fundamentals.</p>
+
+<h3 class="intel">Intel &mdash; Market: $117.40</h3>
+<div class="scenario-row">
+  <div class="scenario-box sc-con"><div class="sc-label">Conservative</div><div class="sc-price negative">$7.80</div><div class="sc-detail">k<sub>e</sub>=10%, g<sub>&infin;</sub>=2%<br>Rev grows 3%&rarr;3%<br>OM recovers to 13%</div></div>
+  <div class="scenario-box sc-base"><div class="sc-label">Base (Analyst-Aligned)</div><div class="sc-price negative">$20.05</div><div class="sc-detail">k<sub>e</sub>=10%, g<sub>&infin;</sub>=3%<br>Rev grows 10%&rarr;6%<br>OM to 20%</div></div>
+  <div class="scenario-box sc-agg"><div class="sc-label">Aggressive</div><div class="sc-price negative">$43.47</div><div class="sc-detail">k<sub>e</sub>=9%, g<sub>&infin;</sub>=3.5%<br>Rev grows 15%&rarr;8%<br>OM to 25%</div></div>
+</div>
+<p style="font-size:0.85rem;">No scenario comes close to $117. Even aggressive assumptions (OM recovering to 25%, revenue growing 15%+) yield only $43. <strong>No combination of k<sub>e</sub> and g<sub>&infin;</sub> tested justifies the market price.</strong> The +219% rally from 52-week lows appears driven by momentum, CHIPS Act sentiment, and foundry optionality that is not capturable in an earnings-based model. Shares outstanding have also increased 13.3% YoY, further diluting per-share value.</p>
+
+<!-- What the market is pricing in -->
+<h2>What the Market Is Pricing In</h2>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Implied Metric</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead>
+    <tbody>
+      <tr><td>Forward EPS (from fwd PE)</td><td>$12.21</td><td>$11.04</td><td>$1.66</td></tr>
+      <tr><td>Implied perpetual growth</td><td>11.2%</td><td>15.9%</td><td>15.1%</td></tr>
+      <tr><td>Implied RI growth rate</td><td>13.6%</td><td>18.2%</td><td>22.0%</td></tr>
+      <tr><td>Year 5 revenue needed (Agg)</td><td>$1.15T</td><td>$158B</td><td>$108B</td></tr>
+      <tr><td>Year 5 NI needed (Agg)</td><td>$598B</td><td>$48B</td><td>$23B</td></tr>
+      <tr><td>Plausibility</td><td class="neutral">Stretched but possible</td><td class="negative">Requires unrealistic ke</td><td class="negative">Not fundamentally supported</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Short Interest -->
+<h2>Short Interest Analysis</h2>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Metric</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead>
+    <tbody>
+      <tr><td>Short % of Float</td><td>1.27%</td><td>2.46%</td><td>3.30%</td></tr>
+      <tr><td>Days to Cover</td><td>2.3</td><td>2.2</td><td>1.7</td></tr>
+      <tr><td>Short Change (MoM)</td><td class="positive">&darr; 1.4%</td><td class="positive">&darr; 4.1%</td><td class="negative">&uarr; 4.3%</td></tr>
+      <tr><td>Signal</td><td>Minimal bearish</td><td>Low, declining</td><td>Modest, rising</td></tr>
+    </tbody>
+  </table>
+</div>
+<p style="font-size:0.85rem;">All three have low short interest (&lt;3.5%). No squeeze setups. Bears are not positioned aggressively. Intel's short interest rising modestly (+4.3% MoM) despite the rally &mdash; new shorts being added.</p>
+
+<!-- Analyst Consensus -->
+<h2>Wall Street Consensus</h2>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Metric</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead>
+    <tbody>
+      <tr><td>Rating</td><td class="positive"><strong>Strong Buy</strong></td><td class="positive"><strong>Strong Buy</strong></td><td class="neutral"><strong>Buy</strong></td></tr>
+      <tr><td>Analysts</td><td>61</td><td>55</td><td>49</td></tr>
+      <tr><td>Target</td><td>$327.70 <span class="positive">(+39%)</span></td><td>$619.51 <span class="negative">(-2%)</span></td><td>$116.37 <span class="negative">(-1%)</span></td></tr>
+      <tr><td>3Y Rev CAGR</td><td>61.1%</td><td>52.2%</td><td>16.0%</td></tr>
+      <tr><td>3Y EPS CAGR</td><td>64.1%</td><td>75.4%</td><td>91.9%</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Verdicts -->
+<h2>Verdicts</h2>
+
+<div class="verdict verdict-hold">
+  <span class="verdict-tag tag-hold">HOLD / CAUTIOUS BUY</span>
+  <h3 class="nvidia">NVIDIA &mdash; $236.16</h3>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Fwd P/E</div><div class="kpi-value">19.3x</div></div>
+    <div class="kpi"><div class="kpi-label">PEG</div><div class="kpi-value positive">0.39</div></div>
+    <div class="kpi"><div class="kpi-label">Model Range</div><div class="kpi-value">$69&ndash;$272</div></div>
+    <div class="kpi"><div class="kpi-label">Analyst Target</div><div class="kpi-value positive">$328 (+39%)</div></div>
+    <div class="kpi"><div class="kpi-label">Short %</div><div class="kpi-value">1.22%</div></div>
+  </div>
+  <div class="pros-cons">
+    <div class="pros"><strong>Bull Case</strong><ul>
+      <li><span>PEG of 0.39 is genuinely cheap for 60%+ growth. Forward PE of 19x is below S&P average</span></li>
+      <li><span>$193B TTM net income on 65% operating margins. FCF of $127B. Unmatched cash generation</span></li>
+      <li><span>Market price falls within our model range (between Base $156 and Aggressive $272). Price is justifiable with k<sub>e</sub> ~10.5% and reasonable growth</span></li>
+      <li><span>Analysts unanimously bullish; target $328 (+39%). Short interest declining</span></li>
+    </ul></div>
+    <div class="cons"><strong>Bear Case</strong><ul>
+      <li><span>$5.7T market cap requires sustained 11%+ perpetual growth &mdash; rare for any company in history</span></li>
+      <li><span>Custom ASICs (TPU, Trainium, Maia) threaten GPU monopoly. Margins already showing early compression (75%&rarr;71% GM)</span></li>
+      <li><span>Beta of 2.22 = violent drawdowns in risk-off environments</span></li>
+      <li><span>Export controls constrain TAM. China restriction risk persists</span></li>
+    </ul></div>
+  </div>
+  <p style="font-size:0.88rem;"><strong>Bottom line:</strong> NVIDIA is the only stock where the current price can be rationalized within our model framework using plausible (if optimistic) assumptions. A forward PE of 19x on 60%+ growth is attractive on a PEG basis. <strong>For new positions: scale in on pullbacks to the $200-210 range.</strong> For existing holders: hold, trim above $280.</p>
+</div>
+
+<div class="verdict verdict-sell">
+  <span class="verdict-tag tag-sell">SELL / TAKE PROFITS</span>
+  <h3 class="amd">AMD &mdash; $631.57</h3>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Trailing P/E</div><div class="kpi-value negative">161.8x</div></div>
+    <div class="kpi"><div class="kpi-label">PEG</div><div class="kpi-value">0.86</div></div>
+    <div class="kpi"><div class="kpi-label">Model Range</div><div class="kpi-value">$48&ndash;$292</div></div>
+    <div class="kpi"><div class="kpi-label">Analyst Target</div><div class="kpi-value negative">$620 (-2%)</div></div>
+    <div class="kpi"><div class="kpi-label">Short %</div><div class="kpi-value">2.45%</div></div>
+  </div>
+  <div class="pros-cons">
+    <div class="pros"><strong>Bull Case</strong><ul>
+      <li><span>Revenue accelerating (TTM $41B vs $35B last FY). MI300/400 AI accelerators gaining real traction</span></li>
+      <li><span>Margins expanding: OM 15.8%, up from 10.7%. Fortress balance sheet (D/E 0.06, Z-score 15.2)</span></li>
+      <li><span>75% 3Y EPS CAGR forecast. PEG under 1.0 on forward estimates</span></li>
+    </ul></div>
+    <div class="cons"><strong>Bear Case</strong><ul>
+      <li><span>No standard valuation model justifies $632. Even our most aggressive scenario reaches only $292 (46% of market price)</span></li>
+      <li><span>+283% in 52 weeks. Analyst consensus target is <em>below</em> the current price. The stock has overshot Wall Street</span></li>
+      <li><span>ROE of 10.2% vs WACC of 17.7%. AMD currently destroys value on a residual income basis</span></li>
+      <li><span>Beta of 2.45 &mdash; highest of the three. Maximum drawdown risk</span></li>
+    </ul></div>
+  </div>
+  <p style="font-size:0.88rem;"><strong>Bottom line:</strong> AMD has improving fundamentals, but the stock has priced in a decade of growth in one year. At 162x trailing earnings, the risk/reward is asymmetrically to the downside. The analyst consensus target is already below the current price. <strong>Take profits.</strong> Re-enter on a pullback to the $300-400 range where forward PE compresses to ~35x.</p>
+</div>
+
+<div class="verdict verdict-sell">
+  <span class="verdict-tag tag-sell">SELL / SPECULATIVE ONLY</span>
+  <h3 class="intel">Intel &mdash; $117.40</h3>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Fwd P/E</div><div class="kpi-value negative">70.9x</div></div>
+    <div class="kpi"><div class="kpi-label">PEG</div><div class="kpi-value">1.03</div></div>
+    <div class="kpi"><div class="kpi-label">Model Range</div><div class="kpi-value">$8&ndash;$43</div></div>
+    <div class="kpi"><div class="kpi-label">Analyst Target</div><div class="kpi-value negative">$116 (-1%)</div></div>
+    <div class="kpi"><div class="kpi-label">Short %</div><div class="kpi-value neutral">3.02%</div></div>
+  </div>
+  <div class="pros-cons">
+    <div class="pros"><strong>Bull Case</strong><ul>
+      <li><span>TTM operating margin turned positive at 7.8% (was -4.2%). Revenue stabilized at $57B</span></li>
+      <li><span>Foundry strategy + CHIPS Act subsidies. US onshoring tailwind</span></li>
+      <li><span>Analyst EPS CAGR forecast of 92% (from a very low base). Some optionality value</span></li>
+    </ul></div>
+    <div class="cons"><strong>Bear Case</strong><ul>
+      <li><span>No scenario in our model comes close to $117. Even aggressive: $43. The market price is 2.7x our best-case</span></li>
+      <li><span>TTM net income: -$11.3B. Company is unprofitable. Forward PE of 71x prices in earnings that don't exist yet</span></li>
+      <li><span>Shares outstanding up 13.3% YoY &mdash; massive dilution. Altman Z-Score 2.23 (distress zone)</span></li>
+      <li><span>Short interest rising MoM. Analyst target is at the current price &mdash; no upside expected</span></li>
+    </ul></div>
+  </div>
+  <p style="font-size:0.88rem;"><strong>Bottom line:</strong> Intel is the most disconnected from fundamentals. The stock is a momentum/sentiment trade around the foundry turnaround narrative. No earnings-based model supports $117. For existing holders: <strong>sell into strength</strong> before the next earnings report (Oct 22) resets expectations. For new money: avoid, or take a small speculative position only if you have high conviction in the 18A node timeline.</p>
+</div>
+
+<!-- Summary Scorecard -->
+<h2>Summary Scorecard</h2>
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Factor</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead>
+    <tbody>
+      <tr><td>Fundamental Quality</td><td class="positive">Exceptional</td><td>Improving</td><td class="negative">Weak</td></tr>
+      <tr><td>Valuation vs Model</td><td class="neutral">Within range (near Aggressive)</td><td class="negative">2.2x above best case</td><td class="negative">2.7x above best case</td></tr>
+      <tr><td>Valuation Multiples</td><td class="positive">Fwd PE 19x, PEG 0.39</td><td class="negative">PE 162x, Fwd PE 57x</td><td class="negative">Unprofitable, Fwd PE 71x</td></tr>
+      <tr><td>Analyst View vs Price</td><td class="positive">+39% upside to target</td><td class="neutral">At target</td><td class="neutral">At target</td></tr>
+      <tr><td>Short Interest</td><td class="positive">Low, declining</td><td class="positive">Low, declining</td><td class="neutral">Modest, rising</td></tr>
+      <tr><td>Balance Sheet</td><td class="positive">Net cash, Z=34.9</td><td class="positive">Net cash, Z=15.2</td><td class="negative">Net debt, Z=2.2</td></tr>
+      <tr><td>Dilution Risk</td><td class="positive">Shares -1% YoY</td><td class="neutral">Shares +1.1% YoY</td><td class="negative">Shares +13.3% YoY</td></tr>
+      <tr style="font-weight:700;font-size:0.9rem"><td>Verdict</td><td class="nvidia">HOLD / Cautious Buy</td><td class="amd">SELL / Take Profits</td><td class="intel">SELL / Speculative Only</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="chart-box"><canvas id="scenarioChart"></canvas></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
+<script>
+var ctx = document.getElementById('scenarioChart');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: ['NVIDIA', 'AMD', 'Intel'],
+    datasets: [
+      {label:'Conservative',data:[68.66,48.28,7.80],backgroundColor:'rgba(239,68,68,0.6)',borderColor:'#ef4444',borderWidth:1},
+      {label:'Base (Analyst)',data:[156.10,131.64,20.05],backgroundColor:'rgba(251,191,36,0.6)',borderColor:'#fbbf24',borderWidth:1},
+      {label:'Aggressive',data:[272.37,292.43,43.47],backgroundColor:'rgba(34,197,94,0.6)',borderColor:'#22c55e',borderWidth:1},
+      {label:'Market Price',data:[236.16,631.57,117.40],backgroundColor:'rgba(99,102,241,0.15)',borderColor:'#6366f1',borderWidth:3,borderDash:[6,3],type:'bar'}
+    ]
+  },
+  options: {
+    responsive:true,maintainAspectRatio:false,
+    plugins:{title:{display:true,text:'Scenario Fair Values vs Market Price',font:{size:14}},legend:{position:'top'}},
+    scales:{y:{ticks:{callback:function(v){return '$'+v;}},title:{display:true,text:'Price per Share'},grid:{color:'rgba(128,128,128,0.15)'}},x:{grid:{display:false}}}
+  }
+});
+</script>
+
+</body>
+</html>

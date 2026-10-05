@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="snowflake-source" content="cortex-agent-authored" />
+  <title>Quick Pricing Formulas: NVIDIA / AMD / Intel</title>
+  <script type="application/json" id="snowflake-report-metadata">
+  {
+    "generated": "2026-10-05",
+    "intent": "Simple pricing formulas calibrated to residual income model, usable with quarterly earnings data",
+    "dataSources": [
+      { "type": "file", "path": "10k_financial_statements.json" },
+      { "type": "derived", "description": "Formulas regressed against 5-year residual income model projections" }
+    ]
+  }
+  </script>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 1100px; width: 100%; margin: 0 auto; padding: clamp(16px, 4vw, 32px); color: light-dark(#1e293b, #e2e8f0); background: light-dark(#fff, #0f172a); line-height: 1.6; }
+    h1 { font-size: 1.75rem; margin-bottom: 0.25em; color: light-dark(#0f172a, #f1f5f9); }
+    h2 { font-size: 1.3rem; margin-top: 2em; color: light-dark(#1e40af, #93c5fd); border-bottom: 2px solid light-dark(#dbeafe, #1e3a5f); padding-bottom: 0.3em; }
+    h3 { font-size: 1.05rem; margin-top: 1.5em; color: light-dark(#374151, #d1d5db); }
+    .subtitle { color: light-dark(#64748b, #94a3b8); margin-top: 0; font-size: 0.95rem; }
+    .formula-card { background: light-dark(#f8fafc, #1e293b); border: 2px solid light-dark(#e2e8f0, #334155); border-radius: 10px; padding: 20px; margin: 16px 0; }
+    .formula-card.best { border-color: light-dark(#22c55e, #16a34a); }
+    .formula-big { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 1.15rem; font-weight: 700; margin: 8px 0; padding: 12px 16px; background: light-dark(#f0f9ff, #0c1929); border-radius: 6px; text-align: center; }
+    .formula-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.82rem; margin-top: 8px; }
+    .formula-meta span { background: light-dark(#e2e8f0, #334155); padding: 2px 8px; border-radius: 4px; }
+    .r2-badge { font-weight: 700; }
+    .r2-high { color: light-dark(#15803d, #4ade80); }
+    .r2-mid { color: light-dark(#d97706, #fbbf24); }
+    .r2-low { color: light-dark(#dc2626, #f87171); }
+    .note { background: light-dark(#fffbeb, #1c1917); border-left: 3px solid light-dark(#f59e0b, #d97706); padding: 8px 14px; margin: 12px 0; font-size: 0.85rem; color: light-dark(#92400e, #fbbf24); }
+    .warning { background: light-dark(#fef2f2, #1c0a0a); border-left: 3px solid light-dark(#ef4444, #dc2626); padding: 8px 14px; margin: 12px 0; font-size: 0.85rem; color: light-dark(#991b1b, #fca5a5); }
+    .table-wrap { overflow-x: auto; margin: 12px 0; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+    th, td { border: 1px solid light-dark(#e2e8f0, #334155); padding: 5px 8px; text-align: right; white-space: nowrap; }
+    th { background: light-dark(#f1f5f9, #1e293b); font-weight: 600; text-align: center; }
+    th:first-child, td:first-child { text-align: left; }
+    .positive { color: light-dark(#15803d, #4ade80); }
+    .negative { color: light-dark(#dc2626, #f87171); }
+    .nvidia { color: light-dark(#16a34a, #4ade80); }
+    .amd { color: light-dark(#dc2626, #f87171); }
+    .intel { color: light-dark(#2563eb, #60a5fa); }
+    .calc-section { background: light-dark(#f0fdf4, #052e16); border: 1px solid light-dark(#86efac, #166534); border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+    .calc-section h3 { margin-top: 0; }
+    .calc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+    .calc-box { background: light-dark(#fff, #0f172a); border: 1px solid light-dark(#d1d5db, #475569); border-radius: 8px; padding: 14px; }
+    .calc-box h4 { margin: 0 0 10px; font-size: 0.95rem; }
+    .calc-input { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .calc-input label { font-size: 0.82rem; width: 140px; }
+    .calc-input input { flex: 1; padding: 6px 10px; border: 1px solid light-dark(#d1d5db, #475569); border-radius: 4px; background: light-dark(#fff, #1e293b); color: inherit; font-size: 0.9rem; font-family: 'SF Mono', monospace; max-width: 140px; }
+    .calc-result { margin-top: 10px; padding: 10px; background: light-dark(#f0f9ff, #0c1929); border-radius: 6px; text-align: center; font-size: 1.1rem; font-weight: 700; font-family: 'SF Mono', monospace; }
+    .calc-steps { font-size: 0.78rem; color: light-dark(#64748b, #94a3b8); margin-top: 6px; font-family: 'SF Mono', monospace; }
+    .cheat-sheet { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; margin: 16px 0; }
+    .cheat-card { border: 2px solid; border-radius: 10px; padding: 16px; }
+    .cheat-card.nv { border-color: light-dark(#22c55e, #166534); }
+    .cheat-card.am { border-color: light-dark(#ef4444, #991b1b); }
+    .cheat-card.in { border-color: light-dark(#3b82f6, #1e40af); }
+    .step { display: flex; gap: 8px; margin: 6px 0; font-size: 0.85rem; }
+    .step-num { background: light-dark(#e2e8f0, #334155); width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; flex-shrink: 0; }
+    .chart-box { position: relative; width: 100%; height: clamp(280px, 40vw, 380px); margin: 16px 0; }
+    .chart-box > canvas { width: 100% !important; height: 100% !important; }
+    img, svg { max-width: 100%; height: auto; }
+    .insight-box { background: light-dark(#f0fdf4, #052e16); border: 1px solid light-dark(#86efac, #166534); border-radius: 6px; padding: 12px 16px; margin: 16px 0; }
+    .insight-box h4 { margin: 0 0 6px 0; color: light-dark(#166534, #4ade80); font-size: 0.95rem; }
+    .insight-box ul { margin: 4px 0; padding-left: 20px; font-size: 0.88rem; }
+  </style>
+</head>
+<body>
+
+<h1>Quick Pricing Formulas</h1>
+<p class="subtitle">Simple formulas calibrated to the residual income model &mdash; use with quarterly earnings reports for rapid fair value estimation</p>
+
+<div class="note">
+  These formulas were derived by regressing the full residual income model's fair value outputs against publicly reported financial metrics. They approximate the full model to within $0.20-2.00 per share. Recalibrate annually as growth rates and margins evolve.
+</div>
+
+<!-- Cheat Sheet -->
+<h2>Cheat Sheet: One Formula Per Company</h2>
+
+<div class="cheat-sheet">
+  <div class="cheat-card nv">
+    <h3 class="nvidia" style="margin-top:0">NVIDIA</h3>
+    <div class="formula-big nvidia">Price = 1.77 &times; (Rev/Share) + $37.86</div>
+    <div class="formula-meta"><span class="r2-badge r2-high">R&sup2; = 0.991</span><span>MAE: $0.48</span><span>Shares: 24,514M</span></div>
+    <div style="margin-top:12px">
+      <div class="step"><div class="step-num">1</div><div>Read <strong>quarterly revenue</strong> from earnings release</div></div>
+      <div class="step"><div class="step-num">2</div><div>Annualize: Rev<sub>annual</sub> = Q_Rev &times; 4</div></div>
+      <div class="step"><div class="step-num">3</div><div>Per share: Rev/Share = Rev<sub>annual</sub> &divide; 24,514</div></div>
+      <div class="step"><div class="step-num">4</div><div>Fair value = 1.77 &times; Rev/Share + 37.86</div></div>
+    </div>
+  </div>
+  <div class="cheat-card am">
+    <h3 class="amd" style="margin-top:0">AMD</h3>
+    <div class="formula-big amd">Price = 1.25 &times; (Rev/Share) + $19.47</div>
+    <div class="formula-meta"><span class="r2-badge r2-high">R&sup2; = 0.989</span><span>MAE: $1.01</span><span>Shares: 1,636M</span></div>
+    <div style="margin-top:12px">
+      <div class="step"><div class="step-num">1</div><div>Read <strong>quarterly revenue</strong> from earnings release</div></div>
+      <div class="step"><div class="step-num">2</div><div>Annualize: Rev<sub>annual</sub> = Q_Rev &times; 4</div></div>
+      <div class="step"><div class="step-num">3</div><div>Per share: Rev/Share = Rev<sub>annual</sub> &divide; 1,636</div></div>
+      <div class="step"><div class="step-num">4</div><div>Fair value = 1.25 &times; Rev/Share + 19.47</div></div>
+    </div>
+  </div>
+  <div class="cheat-card in">
+    <h3 class="intel" style="margin-top:0">Intel</h3>
+    <div class="formula-big intel">Price = 0.41 &times; (OI/Share) + $8.26</div>
+    <div class="formula-meta"><span class="r2-badge r2-mid">R&sup2; = 0.707</span><span>MAE: $0.15</span><span>Shares: 4,530M</span></div>
+    <div style="margin-top:12px">
+      <div class="step"><div class="step-num">1</div><div>Read <strong>quarterly operating income</strong> from earnings</div></div>
+      <div class="step"><div class="step-num">2</div><div>Annualize: OI<sub>annual</sub> = Q_OI &times; 4</div></div>
+      <div class="step"><div class="step-num">3</div><div>Per share: OI/Share = OI<sub>annual</sub> &divide; 4,530</div></div>
+      <div class="step"><div class="step-num">4</div><div>Fair value = 0.41 &times; OI/Share + 8.26</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Interactive Calculator -->
+<h2>Interactive Calculator</h2>
+<div class="calc-section">
+  <h3 style="color:light-dark(#166534, #4ade80);">Plug in quarterly numbers &rarr; get fair value instantly</h3>
+  <div class="calc-grid">
+    <div class="calc-box">
+      <h4 class="nvidia">NVIDIA</h4>
+      <div class="calc-input"><label>Q Revenue ($M):</label><input type="number" id="nv-rev" value="53985" step="100"></div>
+      <div class="calc-result" id="nv-result">$53.45</div>
+      <div class="calc-steps" id="nv-steps">Rev/Sh = 53,985 × 4 ÷ 24,514 = $8.81 → 1.77 × 8.81 + 37.86 = $53.45</div>
+    </div>
+    <div class="calc-box">
+      <h4 class="amd">AMD</h4>
+      <div class="calc-input"><label>Q Revenue ($M):</label><input type="number" id="amd-rev" value="8660" step="100"></div>
+      <div class="calc-result" id="amd-result">$45.93</div>
+      <div class="calc-steps" id="amd-steps">Rev/Sh = 8,660 × 4 ÷ 1,636 = $21.17 → 1.25 × 21.17 + 19.47 = $45.93</div>
+    </div>
+    <div class="calc-box">
+      <h4 class="intel">Intel</h4>
+      <div class="calc-input"><label>Q Op Income ($M):</label><input type="number" id="intel-oi" value="-554" step="100"></div>
+      <div class="calc-result" id="intel-result">$8.06</div>
+      <div class="calc-steps" id="intel-steps">OI/Sh = -554 × 4 ÷ 4,530 = -$0.49 → 0.41 × (-0.49) + 8.26 = $8.06</div>
+    </div>
+  </div>
+</div>
+
+<!-- Full Formula Comparison -->
+<h2>All Tested Formulas</h2>
+<p style="font-size:0.88rem;">Seven candidate formulas were regressed against the residual income model's fair value outputs across 6 data points per company (base year + 5 projected years).</p>
+
+<h3 class="nvidia">NVIDIA</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Formula</th><th>Equation</th><th>R&sup2;</th><th>MAE ($)</th><th>Use Case</th></tr></thead>
+  <tbody>
+    <tr style="background:light-dark(#f0fdf4,#052e16)"><td><strong>Revenue/Share</strong></td><td>1.77 &times; Rev/Sh + 37.86</td><td class="r2-high"><strong>0.991</strong></td><td>0.48</td><td>Best single-variable. Revenue is the most reliable quarterly metric.</td></tr>
+    <tr><td>EPS</td><td>5.91 &times; EPS + 23.57</td><td>0.924</td><td>1.48</td><td>Quick P/E proxy. Less precise due to tax/non-op volatility.</td></tr>
+    <tr><td>Gross Profit/Sh</td><td>3.50 &times; GP/Sh + 30.85</td><td>0.958</td><td>1.07</td><td>Good middle ground between revenue and earnings.</td></tr>
+    <tr><td>Op Income/Sh</td><td>4.71 &times; OI/Sh + 27.66</td><td>0.949</td><td>1.17</td><td>Good if you track operating leverage.</td></tr>
+    <tr style="background:light-dark(#eff6ff,#0c1929)"><td><strong>EPS + BVPS</strong></td><td>-1.13 &times; EPS + 1.81 &times; BVPS + 48.08</td><td class="r2-high"><strong>0.999</strong></td><td>0.19</td><td>Most precise. Needs balance sheet (quarterly 10-Q).</td></tr>
+    <tr><td>GP/Sh + BVPS</td><td>-0.89 &times; GP/Sh + 1.92 &times; BVPS + 47.44</td><td>0.999</td><td>0.20</td><td>Alternative 2-variable. Similar precision.</td></tr>
+    <tr><td>OI/Sh + Rev/Sh</td><td>-3.10 &times; OI/Sh + 2.91 &times; Rev/Sh + 45.10</td><td>0.999</td><td>0.18</td><td>Best 2-var from income statement only.</td></tr>
+  </tbody>
+</table></div>
+
+<h3 class="amd">AMD</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Formula</th><th>Equation</th><th>R&sup2;</th><th>MAE ($)</th><th>Use Case</th></tr></thead>
+  <tbody>
+    <tr style="background:light-dark(#fef2f2,#1c0a0a)"><td><strong>Revenue/Share</strong></td><td>1.25 &times; Rev/Sh + 19.47</td><td class="r2-high"><strong>0.989</strong></td><td>1.01</td><td>Best single-variable. Revenue tracks growth thesis directly.</td></tr>
+    <tr><td>EPS</td><td>4.82 &times; EPS + 35.92</td><td>0.949</td><td>2.15</td><td>Less reliable &mdash; AMD earnings are volatile post-Xilinx.</td></tr>
+    <tr><td>Gross Profit/Sh</td><td>2.82 &times; GP/Sh + 30.35</td><td>0.566</td><td>5.20</td><td>Poor fit. GP/share is noisy due to amortization.</td></tr>
+    <tr><td>Op Income/Sh</td><td>3.89 &times; OI/Sh + 37.96</td><td>0.980</td><td>1.40</td><td>Good alternative &mdash; tracks margin expansion thesis.</td></tr>
+    <tr style="background:light-dark(#eff6ff,#0c1929)"><td><strong>EPS + BVPS</strong></td><td>-0.61 &times; EPS + 1.47 &times; BVPS - 10.63</td><td class="r2-high"><strong>0.999</strong></td><td>0.29</td><td>Most precise. Book value drives AMD value post-acquisition.</td></tr>
+    <tr><td>OI/Sh + Rev/Sh</td><td>-9.66 &times; OI/Sh + 4.35 &times; Rev/Sh - 25.91</td><td>0.999</td><td>0.26</td><td>Best 2-var from IS only. Captures growth vs margin tradeoff.</td></tr>
+  </tbody>
+</table></div>
+
+<h3 class="intel">Intel</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Formula</th><th>Equation</th><th>R&sup2;</th><th>MAE ($)</th><th>Use Case</th></tr></thead>
+  <tbody>
+    <tr style="background:light-dark(#eff6ff,#0c1929)"><td><strong>Op Income/Share</strong></td><td>0.41 &times; OI/Sh + 8.26</td><td class="r2-mid"><strong>0.707</strong></td><td>0.15</td><td>Best single-var. Tracks turnaround thesis via operating profitability.</td></tr>
+    <tr><td>EPS</td><td>0.53 &times; EPS + 8.22</td><td>0.649</td><td>0.18</td><td>Noisier &mdash; non-operating items distort Intel NI.</td></tr>
+    <tr><td>Revenue/Share</td><td>0.28 &times; Rev/Sh + 5.01</td><td>0.527</td><td>0.22</td><td>Weak. Intel's value is more about margins than top line.</td></tr>
+    <tr><td>OI/Sh + Rev/Sh</td><td>0.76 &times; OI/Sh - 0.29 &times; Rev/Sh + 11.67</td><td>0.762</td><td>0.17</td><td>Best 2-var. Revenue has negative coefficient (higher rev without OI = bad).</td></tr>
+  </tbody>
+</table></div>
+
+<div class="note">
+  <strong>Why Intel's R&sup2; values are lower:</strong> The model's fair value for Intel barely moves ($8.03&ndash;$9.05 over 5 years &mdash; a $1.02 range). Any formula that predicts ~$8.50 constantly would appear to have "low R&sup2;" even though it's right. The MAE of $0.15 is actually excellent in absolute terms.
+</div>
+
+<!-- Decision Framework -->
+<h2>How to Use After Earnings</h2>
+
+<div class="insight-box">
+  <h4>Quick Decision Framework</h4>
+  <ul>
+    <li><strong>Step 1:</strong> Read quarterly revenue (NVIDIA/AMD) or operating income (Intel) from the earnings press release &mdash; available within minutes of the report.</li>
+    <li><strong>Step 2:</strong> Annualize (multiply by 4) and divide by shares outstanding.</li>
+    <li><strong>Step 3:</strong> Plug into the formula to get fair value.</li>
+    <li><strong>Step 4:</strong> Compare to current market price:
+      <ul>
+        <li>Market price <strong>&gt;15% above</strong> fair value &rarr; Potentially overvalued</li>
+        <li>Market price <strong>within &plusmn;15%</strong> of fair value &rarr; Fairly valued</li>
+        <li>Market price <strong>&gt;15% below</strong> fair value &rarr; Potentially undervalued</li>
+      </ul>
+    </li>
+    <li><strong>Step 5 (optional):</strong> For higher precision, wait for the 10-Q filing (a few weeks later) and use the 2-variable Ohlson formula (EPS + BVPS) for &lt;$0.30 error.</li>
+  </ul>
+</div>
+
+<h3>Back-Calculation: What Revenue Does the Market Imply?</h3>
+<p style="font-size:0.88rem;">Invert the formula to see what quarterly revenue the current market price implies, then compare to analyst estimates or your own expectations.</p>
+
+<div class="formula-card">
+  <div style="font-family:'SF Mono',monospace;font-size:0.9rem;">
+    <strong>NVIDIA:</strong> Implied Q_Rev = (Market Price - 37.86) &divide; 1.77 &times; 24,514 &divide; 4<br>
+    <span style="color:light-dark(#64748b,#94a3b8)">Example: If NVDA trades at $65 &rarr; Q_Rev = (65 - 37.86) / 1.77 × 24,514 / 4 = <strong>$93,923M</strong>/quarter implied</span>
+    <br><br>
+    <strong>AMD:</strong> Implied Q_Rev = (Market Price - 19.47) &divide; 1.25 &times; 1,636 &divide; 4<br>
+    <span style="color:light-dark(#64748b,#94a3b8)">Example: If AMD trades at $55 &rarr; Q_Rev = (55 - 19.47) / 1.25 × 1,636 / 4 = <strong>$11,654M</strong>/quarter implied</span>
+    <br><br>
+    <strong>Intel:</strong> Implied Q_OI = (Market Price - 8.26) &divide; 0.41 &times; 4,530 &divide; 4<br>
+    <span style="color:light-dark(#64748b,#94a3b8)">Example: If INTC trades at $10 &rarr; Q_OI = (10 - 8.26) / 0.41 × 4,530 / 4 = <strong>$4,809M</strong>/quarter OI implied</span>
+  </div>
+</div>
+
+<!-- Formula Fit Chart -->
+<h2>Formula Accuracy vs Model</h2>
+<div class="chart-box"><canvas id="fitChart"></canvas></div>
+
+<div class="warning">
+  <strong>Limitations &amp; Recalibration:</strong> (1) Formulas are calibrated to a specific growth/margin trajectory. If NVIDIA's margins jump to 70% or collapse to 40%, the revenue-based formula will over/under-estimate. (2) Share counts change &mdash; update the divisor when there are material buybacks or issuance. (3) The intercept term ($37.86 for NVIDIA) embeds the terminal value assumption. If long-term growth expectations shift, recalibrate. (4) Recalibrate annually by re-running the full residual income model with updated base-year data. (5) For Intel, if the turnaround meaningfully exceeds or disappoints vs the assumed margin recovery, the formula range will shift.
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
+<script>
+// Calculator logic
+function calcNV() {
+  var qrev = parseFloat(document.getElementById('nv-rev').value) || 0;
+  var annRev = qrev * 4;
+  var revSh = annRev / 24514;
+  var price = 1.77 * revSh + 37.86;
+  document.getElementById('nv-result').textContent = '$' + price.toFixed(2);
+  document.getElementById('nv-steps').textContent = 'Rev/Sh = ' + qrev.toLocaleString() + ' × 4 ÷ 24,514 = $' + revSh.toFixed(2) + ' → 1.77 × ' + revSh.toFixed(2) + ' + 37.86 = $' + price.toFixed(2);
+}
+function calcAMD() {
+  var qrev = parseFloat(document.getElementById('amd-rev').value) || 0;
+  var annRev = qrev * 4;
+  var revSh = annRev / 1636;
+  var price = 1.25 * revSh + 19.47;
+  document.getElementById('amd-result').textContent = '$' + price.toFixed(2);
+  document.getElementById('amd-steps').textContent = 'Rev/Sh = ' + qrev.toLocaleString() + ' × 4 ÷ 1,636 = $' + revSh.toFixed(2) + ' → 1.25 × ' + revSh.toFixed(2) + ' + 19.47 = $' + price.toFixed(2);
+}
+function calcIntel() {
+  var qoi = parseFloat(document.getElementById('intel-oi').value) || 0;
+  var annOI = qoi * 4;
+  var oiSh = annOI / 4530;
+  var price = 0.41 * oiSh + 8.26;
+  document.getElementById('intel-result').textContent = '$' + price.toFixed(2);
+  document.getElementById('intel-steps').textContent = 'OI/Sh = ' + qoi.toLocaleString() + ' × 4 ÷ 4,530 = $' + oiSh.toFixed(2) + ' → 0.41 × ' + oiSh.toFixed(2) + ' + 8.26 = $' + price.toFixed(2);
+}
+document.getElementById('nv-rev').addEventListener('input', calcNV);
+document.getElementById('amd-rev').addEventListener('input', calcAMD);
+document.getElementById('intel-oi').addEventListener('input', calcIntel);
+
+// Fit chart: model price vs formula price
+var fitData = {
+  NVIDIA: {
+    labels: ['FY26','FY27','FY28','FY29','FY30','FY31'],
+    model: [54.06,58.06,61.59,65.07,68.31,71.43],
+    revSh: [8.81,11.45,13.74,15.67,17.23,18.44],
+    formula: function(rs) { return 1.77*rs+37.86; }
+  },
+  AMD: {
+    labels: ['FY25','FY26','FY27','FY28','FY29','FY30'],
+    model: [44.38,53.48,60.39,66.79,71.55,75.66],
+    revSh: [21.17,26.47,31.76,36.84,41.63,45.79],
+    formula: function(rs) { return 1.25*rs+19.47; }
+  },
+  Intel: {
+    labels: ['FY25','FY26','FY27','FY28','FY29','FY30'],
+    model: [8.03,8.27,8.56,9.04,9.05,8.62],
+    oiSh: [-0.49,0.24,0.74,1.18,1.52,1.72],
+    formula: function(oi) { return 0.41*oi+8.26; }
+  }
+};
+
+var allLabels = ['Yr0','Yr1','Yr2','Yr3','Yr4','Yr5'];
+var datasets = [];
+['NVIDIA','AMD','Intel'].forEach(function(co) {
+  var d = fitData[co];
+  var colors = {NVIDIA:'#22c55e',AMD:'#ef4444',Intel:'#3b82f6'};
+  var formulaP = co==='Intel' ? d.oiSh.map(d.formula) : d.revSh.map(d.formula);
+  datasets.push({
+    label: co+' (Model)',
+    data: d.model,
+    borderColor: colors[co],
+    backgroundColor: 'transparent',
+    borderWidth: 3, pointRadius: 5, pointStyle: 'circle',
+    borderDash: []
+  });
+  datasets.push({
+    label: co+' (Formula)',
+    data: formulaP,
+    borderColor: colors[co],
+    backgroundColor: 'transparent',
+    borderWidth: 2, pointRadius: 5, pointStyle: 'triangle',
+    borderDash: [6,3]
+  });
+});
+
+new Chart(document.getElementById('fitChart'), {
+  type: 'line',
+  data: { labels: allLabels, datasets: datasets },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+    scales: {
+      y: { ticks: { callback: function(v){return '$'+v;} }, grid: { color: 'rgba(128,128,128,0.15)' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+</script>
+
+</body>
+</html>
