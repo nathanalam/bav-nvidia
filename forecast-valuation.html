@@ -3,22 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="snowflake-source" content="cortex-agent-authored" />
-  <title>5-Year Forecast &amp; Valuation: NVIDIA vs AMD vs Intel</title>
-  <script type="application/json" id="snowflake-report-metadata">
-  {
-    "generated": "2026-10-05",
-    "intent": "5-year financial projection with residual income valuation and quarterly fair value estimates for NVIDIA, AMD, Intel",
-    "dataSources": [
-      { "type": "file", "path": "10k_financial_statements.json", "description": "Historical 10-K financials" }
-    ],
-    "sections": [
-      { "id": "valuation-summary", "title": "Valuation Summary", "producerNotes": "Residual Income Model: MVE = BVE + PV(RI) + PV(TV). CAPM-derived cost of equity." },
-      { "id": "projected-financials", "title": "Projected Financials", "producerNotes": "Revenue growth decelerating toward terminal. Margins based on competitive analysis." },
-      { "id": "quarterly-prices", "title": "Quarterly Price Projections", "producerNotes": "Linear interpolation between annual fair values." }
-    ]
-  }
-  </script>
+  <title>Twenty-quarter forecast: NVIDIA, AMD, Intel</title>
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -33,344 +18,201 @@
     h1 { font-size: 1.75rem; margin-bottom: 0.25em; color: light-dark(#0f172a, #f1f5f9); }
     h2 { font-size: 1.35rem; margin-top: 2em; color: light-dark(#1e40af, #93c5fd); border-bottom: 2px solid light-dark(#dbeafe, #1e3a5f); padding-bottom: 0.3em; }
     h3 { font-size: 1.1rem; margin-top: 1.5em; color: light-dark(#374151, #d1d5db); }
+    p { margin: 0.6em 0; }
+    a { color: light-dark(#1d4ed8, #93c5fd); }
     .subtitle { color: light-dark(#64748b, #94a3b8); margin-top: 0; font-size: 0.95rem; }
     .formula { background: light-dark(#f0f9ff, #1e293b); border: 1px solid light-dark(#bfdbfe, #334155); border-radius: 6px; padding: 10px 16px; margin: 12px 0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.88rem; }
     .note { background: light-dark(#fffbeb, #1c1917); border-left: 3px solid light-dark(#f59e0b, #d97706); padding: 8px 14px; margin: 12px 0; font-size: 0.85rem; color: light-dark(#92400e, #fbbf24); }
+    .info { background: light-dark(#eff6ff, #0c1929); border-left: 3px solid light-dark(#3b82f6, #60a5fa); padding: 8px 14px; margin: 12px 0; font-size: 0.85rem; color: light-dark(#1e40af, #93c5fd); }
     .warning { background: light-dark(#fef2f2, #1c0a0a); border-left: 3px solid light-dark(#ef4444, #dc2626); padding: 8px 14px; margin: 12px 0; font-size: 0.85rem; color: light-dark(#991b1b, #fca5a5); }
     .table-wrap { overflow-x: auto; margin: 16px 0; }
     table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
     th, td { border: 1px solid light-dark(#e2e8f0, #334155); padding: 5px 8px; text-align: right; white-space: nowrap; }
     th { background: light-dark(#f1f5f9, #1e293b); font-weight: 600; text-align: center; }
     th:first-child, td:first-child { text-align: left; }
+    .section td { background: light-dark(#dbeafe, #1e3a5f); font-weight: 700; text-align: left; }
     .positive { color: light-dark(#15803d, #4ade80); }
     .negative { color: light-dark(#dc2626, #f87171); }
-    .chart-box { position: relative; width: 100%; height: clamp(280px, 40vw, 380px); margin: 16px 0; }
-    .chart-box > canvas { width: 100% !important; height: 100% !important; }
-    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 24px; }
-    .tab-container { margin: 16px 0; }
-    .tab-buttons { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 0; }
-    .tab-btn { padding: 6px 16px; border: 1px solid light-dark(#d1d5db, #475569); background: light-dark(#f9fafb, #1e293b); color: light-dark(#374151, #d1d5db); cursor: pointer; border-radius: 6px 6px 0 0; font-size: 0.85rem; border-bottom: none; }
-    .tab-btn.active { background: light-dark(#ffffff, #0f172a); color: light-dark(#1e40af, #93c5fd); font-weight: 600; border-color: light-dark(#93c5fd, #3b82f6); }
-    .tab-panel { display: none; border: 1px solid light-dark(#d1d5db, #475569); border-radius: 0 6px 6px 6px; padding: 16px; }
-    .tab-panel.active { display: block; }
+    .bold { font-weight: 700; }
     .insight-box { background: light-dark(#f0fdf4, #052e16); border: 1px solid light-dark(#86efac, #166534); border-radius: 6px; padding: 12px 16px; margin: 16px 0; }
     .insight-box h4 { margin: 0 0 6px 0; color: light-dark(#166534, #4ade80); font-size: 0.95rem; }
     .insight-box ul { margin: 4px 0; padding-left: 20px; font-size: 0.88rem; }
-    img, svg { max-width: 100%; height: auto; }
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
-    .kpi { background: light-dark(#f8fafc, #1e293b); border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 14px; text-align: center; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0 20px; }
+    .kpi { background: light-dark(#f8fafc, #1e293b); border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 12px; text-align: center; }
     .kpi-label { font-size: 0.72rem; color: light-dark(#64748b, #94a3b8); text-transform: uppercase; letter-spacing: 0.05em; }
-    .kpi-value { font-size: 1.5rem; font-weight: 700; margin-top: 2px; }
+    .kpi-value { font-size: 1.35rem; font-weight: 700; margin-top: 2px; }
     .kpi-sub { font-size: 0.75rem; color: light-dark(#94a3b8, #64748b); margin-top: 2px; }
     .nvidia { color: light-dark(#16a34a, #4ade80); }
     .amd { color: light-dark(#dc2626, #f87171); }
     .intel { color: light-dark(#2563eb, #60a5fa); }
-    .assumption-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 16px 0; }
-    .assumption-card { background: light-dark(#f8fafc, #1e293b); border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 14px; }
-    .assumption-card h4 { margin: 0 0 8px; font-size: 0.9rem; }
-    .bar-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 0.82rem; }
-    .bar-label { width: 60px; text-align: right; }
-    .bar-track { flex: 1; height: 18px; background: light-dark(#e2e8f0, #334155); border-radius: 3px; overflow: hidden; position: relative; }
-    .bar-fill { height: 100%; border-radius: 3px; display: flex; align-items: center; justify-content: flex-end; padding-right: 4px; font-size: 0.7rem; color: #fff; font-weight: 600; }
-    .bar-fill.nv { background: #22c55e; }
-    .bar-fill.am { background: #ef4444; }
-    .bar-fill.in { background: #3b82f6; }
-  </style>
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .card { background: light-dark(#f8fafc, #1e293b); border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 14px; }
+    .card h3 { margin-top: 0; }
+    .latest { box-shadow: inset 0 -2px 0 light-dark(#16a34a, #4ade80); }
+</style>
 </head>
 <body>
 
-<h1>5-Year Forecast &amp; Fair Value Estimate</h1>
-<p class="subtitle">NVIDIA vs AMD vs Intel &mdash; Residual Income Valuation with Market Value Balance Sheet</p>
-
-<div class="warning">
-  <strong>Disclaimer:</strong> This is a modeling exercise based on historical 10-K data and projected assumptions. It is not investment advice. Projections reflect one scenario among many. Actual results will differ materially based on competitive dynamics, macro conditions, technology cycles, and execution. The model assumes current capital structure continues without major share issuance or dilution.
-</div>
-
-<!-- Valuation KPIs -->
-<h2 id="valuation-summary">Valuation Summary</h2>
-
+<h1>Twenty-quarter residual-income forecast</h1>
+<p class="subtitle">NVIDIA, AMD, and Intel · off the latest quarter · Prepared October 6, 2026</p>
+<div class="warning"><strong>Not investment advice.</strong> One explicit path. The market prices below are the October 5, 2026 snapshot in the buy-and-sell note. This page does not update those prices and does not change that note's verdicts.</div>
+<div class="info">Each of the twenty quarters is its own residual-income period. The earlier quarterly prices on this page were a straight line between annual values. This page replaces that line. Cost of equity stays at 13.5% for NVIDIA, 12.5% for AMD, and 9.7% for Intel. Terminal growth stays at 3% a year. The scenario rates in <a href="buy-sell-report.html">buy-sell-report.html</a> stay on that page.</div>
+<h2>Fair value</h2>
 <div class="kpi-grid">
-  <div class="kpi">
-    <div class="kpi-label">NVIDIA Fair Value</div>
-    <div class="kpi-value nvidia">$54.06</div>
-    <div class="kpi-sub">MVE: $1,325B | 24,514M shares</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">AMD Fair Value</div>
-    <div class="kpi-value amd">$44.38</div>
-    <div class="kpi-sub">MVE: $73B | 1,636M shares</div>
-  </div>
-  <div class="kpi">
-    <div class="kpi-label">Intel Fair Value</div>
-    <div class="kpi-value intel">$8.03</div>
-    <div class="kpi-sub">MVE: $36B | 4,530M shares</div>
-  </div>
+  <div class="kpi"><div class="kpi-label">NVIDIA</div><div class="kpi-value nvidia">$114.08</div><div class="kpi-sub">Annual model $54.06 · market $236.16</div></div>
+  <div class="kpi"><div class="kpi-label">AMD</div><div class="kpi-value amd">$35.00</div><div class="kpi-sub">Annual model $44.38 · market $631.57</div></div>
+  <div class="kpi"><div class="kpi-label">Intel</div><div class="kpi-value intel">$2.30</div><div class="kpi-sub">Annual model $8.03 · market $117.40</div></div>
+  <div class="kpi"><div class="kpi-label">Intel, kinder margin</div><div class="kpi-value intel">$7.70</div><div class="kpi-sub">Starts at the latest 11.1% margin and glides to 12%</div></div>
 </div>
+<div class="formula">Value = current book equity + present value of twenty quarterly residual incomes + present value of the terminal value at quarter 20</div>
+<div class="formula">Residual income = quarterly net income − (cost of equity / 4) x beginning equity. Terminal value = residual income at quarter 20 x (1 + quarterly growth) / (quarterly cost of equity − quarterly growth).</div>
+<h2>Assumptions</h2>
+<p>NVIDIA's first quarter is the company's $108bn revenue guide, midpoint, with no China data-center compute. Later quarters decelerate. AMD and Intel step off the latest reported quarter. Operating margin starts at the trailing margin. NVIDIA net income keeps the latest quarter's conversion of operating income. AMD and Intel net income is operating income taxed at 21%.</p>
+<div class="cards">
 
-<div class="formula">
-  Market Value of Equity = Book Value of Equity + PV(Residual Income, years 1-5) + PV(Terminal Value)<br>
-  Residual Income = Net Income &minus; (Cost of Equity &times; Beginning Book Equity)<br>
-  Terminal Value = RI<sub>5</sub> &times; (1+g) / (k<sub>e</sub> &minus; g), discounted back 5 years
+    <div class="card">
+      <h3 class="nvidia">NVIDIA</h3>
+      <p>Cost of equity 13.5%. Terminal growth 3.0%. Operating margin glides from the trailing 65.2% to 55.0%. Net income is 0.9365 times operating income. Turnover stays at 1.20x. Equity stays at 71.5% of assets.</p>
+      <p>First quarter is the $108bn guide, midpoint, with no China data-center compute. Margin glides from the trailing-twelve-month 65% toward 55%.</p>
+    </div>
+    <div class="card">
+      <h3 class="amd">AMD</h3>
+      <p>Cost of equity 12.5%. Terminal growth 3.0%. Operating margin glides from the trailing 15.7% to 22.0%. Net income is 0.7900 times operating income. Turnover stays at 0.55x. Equity stays at 79.6% of assets.</p>
+      <p>Sequential growth steps down from 6%. Net income is operating income taxed at 21%, because quarterly interest income is not disclosed apart from other income.</p>
+    </div>
+    <div class="card">
+      <h3 class="intel">Intel</h3>
+      <p>Cost of equity 9.7%. Terminal growth 3.0%. Operating margin glides from the trailing -0.1% to 10.0%. Net income is 0.7900 times operating income. Turnover stays at 0.32x. Equity stays at 51.0% of assets.</p>
+      <p>Margin starts at the trailing-twelve-month result, about breakeven, and glides to 10%. The escrowed-share mark is not repeated.</p>
+    </div>
 </div>
-
-<!-- Value Bridge -->
-<h3>Value Bridge ($M)</h3>
-<div class="table-wrap">
-  <table>
-    <thead><tr><th>Component</th><th>NVIDIA</th><th>AMD</th><th>Intel</th></tr></thead>
-    <tbody>
-      <tr><td>Book Value of Equity</td><td>$157,293</td><td>$62,999</td><td>$126,360</td></tr>
-      <tr><td>+ PV of Residual Income (Yr 1-5)</td><td class="positive">$466,189</td><td class="negative">($2,269)</td><td class="negative">($32,852)</td></tr>
-      <tr><td>+ PV of Terminal Value</td><td class="positive">$701,639</td><td class="positive">$11,871</td><td class="negative">($57,132)</td></tr>
-      <tr style="font-weight:700;background:light-dark(#f0fdf4,#052e16)"><td>= Market Value of Equity</td><td>$1,325,121</td><td>$72,601</td><td>$36,376</td></tr>
-      <tr><td>Diluted Shares (M)</td><td>24,514</td><td>1,636</td><td>4,530</td></tr>
-      <tr style="font-weight:700"><td>Fair Value per Share</td><td class="nvidia">$54.06</td><td class="amd">$44.38</td><td class="intel">$8.03</td></tr>
-    </tbody>
-  </table>
-</div>
-
-<h3>CAPM Inputs</h3>
-<div class="table-wrap">
-  <table>
-    <thead><tr><th>Parameter</th><th>NVIDIA</th><th>AMD</th><th>Intel</th></tr></thead>
-    <tbody>
-      <tr><td>Risk-Free Rate</td><td>4.2%</td><td>4.2%</td><td>4.2%</td></tr>
-      <tr><td>Equity Risk Premium</td><td>5.5%</td><td>5.5%</td><td>5.5%</td></tr>
-      <tr><td>Beta</td><td>1.70</td><td>1.50</td><td>1.00</td></tr>
-      <tr style="font-weight:700"><td>Cost of Equity (k<sub>e</sub>)</td><td>13.5%</td><td>12.5%</td><td>9.7%</td></tr>
-      <tr><td>Terminal Growth (g)</td><td>3.0%</td><td>3.0%</td><td>3.0%</td></tr>
-    </tbody>
-  </table>
-</div>
-
-<!-- Fair Value Trajectory Chart -->
-<h2>Fair Value Trajectory</h2>
-<div class="chart-box"><canvas id="priceChart"></canvas></div>
-
-<!-- Key Assumptions -->
-<h2 id="assumptions">Model Assumptions</h2>
-
-<div class="assumption-grid">
-  <div class="assumption-card">
-    <h4 class="nvidia">NVIDIA &mdash; Revenue Growth</h4>
-    <p style="font-size:0.82rem;margin:0 0 8px">AI demand decelerating from 65% (FY2026) toward terminal. Increased competition from AMD, custom ASICs.</p>
-    <div class="bar-row"><div class="bar-label">FY27</div><div class="bar-track"><div class="bar-fill nv" style="width:50%">30%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY28</div><div class="bar-track"><div class="bar-fill nv" style="width:33%">20%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY29</div><div class="bar-track"><div class="bar-fill nv" style="width:23%">14%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY30</div><div class="bar-track"><div class="bar-fill nv" style="width:17%">10%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY31</div><div class="bar-track"><div class="bar-fill nv" style="width:12%">7%</div></div></div>
-  </div>
-  <div class="assumption-card">
-    <h4 class="amd">AMD &mdash; Revenue Growth</h4>
-    <p style="font-size:0.82rem;margin:0 0 8px">Data center AI ramp continues (MI300/400 series). Xilinx synergies maturing. Console cycle headwind.</p>
-    <div class="bar-row"><div class="bar-label">FY26</div><div class="bar-track"><div class="bar-fill am" style="width:42%">25%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY27</div><div class="bar-track"><div class="bar-fill am" style="width:33%">20%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY28</div><div class="bar-track"><div class="bar-fill am" style="width:27%">16%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY29</div><div class="bar-track"><div class="bar-fill am" style="width:22%">13%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY30</div><div class="bar-track"><div class="bar-fill am" style="width:17%">10%</div></div></div>
-  </div>
-  <div class="assumption-card">
-    <h4 class="intel">Intel &mdash; Revenue Growth</h4>
-    <p style="font-size:0.82rem;margin:0 0 8px">Foundry turnaround thesis. Revenue stabilization then slow recovery. Client PC and server share losses moderating.</p>
-    <div class="bar-row"><div class="bar-label">FY26</div><div class="bar-track"><div class="bar-fill in" style="width:3%">2%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY27</div><div class="bar-track"><div class="bar-fill in" style="width:7%">4%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY28</div><div class="bar-track"><div class="bar-fill in" style="width:10%">6%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY29</div><div class="bar-track"><div class="bar-fill in" style="width:8%">5%</div></div></div>
-    <div class="bar-row"><div class="bar-label">FY30</div><div class="bar-track"><div class="bar-fill in" style="width:7%">4%</div></div></div>
-  </div>
-</div>
-
-<div class="assumption-grid">
-  <div class="assumption-card">
-    <h4>Operating Margin Trajectory</h4>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Year</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead>
-      <tbody>
-        <tr><td>Base</td><td>60.4%</td><td>10.7%</td><td>-4.2%</td></tr>
-        <tr><td>+1</td><td>58.0%</td><td>14.0%</td><td>2.0%</td></tr>
-        <tr><td>+2</td><td>55.0%</td><td>17.0%</td><td>6.0%</td></tr>
-        <tr><td>+3</td><td>52.0%</td><td>19.0%</td><td>9.0%</td></tr>
-        <tr><td>+4</td><td>50.0%</td><td>21.0%</td><td>11.0%</td></tr>
-        <tr><td>+5</td><td>48.0%</td><td>22.0%</td><td>12.0%</td></tr>
-      </tbody>
-    </table></div>
-  </div>
-  <div class="assumption-card">
-    <h4>Capital Structure (Equity / TA)</h4>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Company</th><th>Current</th><th>Assumed Forward</th></tr></thead>
-      <tbody>
-        <tr><td class="nvidia">NVIDIA</td><td>76%</td><td>76% (stable)</td></tr>
-        <tr><td class="amd">AMD</td><td>82%</td><td>82% (stable)</td></tr>
-        <tr><td class="intel">Intel</td><td>60%</td><td>60% (stable)</td></tr>
-      </tbody>
-    </table></div>
-    <p style="font-size:0.8rem;margin:8px 0 0;">Assumption: current capital structure maintained. No major share issuance, buyback programs roughly offset SBC dilution.</p>
-  </div>
-</div>
-
-<!-- Projected Financials -->
-<h2 id="projected-financials">Projected Financials</h2>
-
-<div class="tab-container">
-  <div class="tab-buttons" id="tabsProj">
-    <button class="tab-btn active" data-tab="tp-nvidia">NVIDIA</button>
-    <button class="tab-btn" data-tab="tp-amd">AMD</button>
-    <button class="tab-btn" data-tab="tp-intel">Intel</button>
-  </div>
-  <div class="tab-panel active" id="tp-nvidia"></div>
-  <div class="tab-panel" id="tp-amd"></div>
-  <div class="tab-panel" id="tp-intel"></div>
-</div>
-
-<!-- Revenue & NI Charts -->
-<div class="chart-grid">
-  <div><h3>Revenue Projection ($M)</h3><div class="chart-box"><canvas id="revChart"></canvas></div></div>
-  <div><h3>Net Income Projection ($M)</h3><div class="chart-box"><canvas id="niChart"></canvas></div></div>
-</div>
-
-<div class="chart-grid">
-  <div><h3>ROE Projection</h3><div class="chart-box"><canvas id="roeChart"></canvas></div></div>
-  <div><h3>Residual Income ($M)</h3><div class="chart-box"><canvas id="riChart"></canvas></div></div>
-</div>
-
-<div class="insight-box">
-  <h4>Projection Insights</h4>
-  <ul>
-    <li><strong>NVIDIA</strong> generates massive positive residual income ($127-135B/yr) throughout the forecast. Even with revenue growth decelerating from 30% to 7% and operating margins compressing from 58% to 48%, the sheer scale of earnings dominates the valuation. ROE remains 48-94% vs a 13.5% cost of equity &mdash; the spread is enormous.</li>
-    <li><strong>AMD</strong> starts with negative residual income (earning below cost of equity on its large post-Xilinx equity base) but crosses positive by FY2029 as margins expand to 19-22%. The model sees AMD as currently priced near fair value, with upside contingent on margin expansion execution.</li>
-    <li><strong>Intel</strong> generates persistently negative residual income even under a recovery scenario. The $126B equity base requires $12.3B of annual net income just to clear the 9.7% cost of equity hurdle, which Intel likely won't achieve within 5 years. The terminal value is negative, pulling the market value well below book value.</li>
-  </ul>
-</div>
-
-<!-- Quarterly Prices -->
-<h2 id="quarterly-prices">Quarterly Fair Value Projections</h2>
-<p style="font-size:0.88rem;">Fair values interpolated quarterly between annual residual income model outputs. NVIDIA uses Jan fiscal year-end; AMD and Intel use Dec calendar year-end. Periods are approximately aligned (~1 month offset).</p>
-
-<div id="quarterlyTableContainer"></div>
-
-<div class="chart-box" style="height:clamp(300px,45vw,420px)"><canvas id="qPriceChart"></canvas></div>
-
-<div class="insight-box">
-  <h4>Price Trajectory Summary</h4>
-  <ul>
-    <li><strong>NVIDIA:</strong> Fair value rises from $54 to $71 over 5 years (+32%), reflecting continued but decelerating earnings growth. The relatively modest price appreciation vs massive earnings growth reflects the high cost of equity (13.5%) and terminal growth deceleration priced in.</li>
-    <li><strong>AMD:</strong> Fair value rises from $44 to $76 over 5 years (+70%), the strongest appreciation trajectory. This reflects the margin expansion thesis: as AMD grows into its post-acquisition asset base, ROE climbs from 8% toward 15%, creating increasing residual income and value accretion.</li>
-    <li><strong>Intel:</strong> Fair value is range-bound at $8-9 throughout. Even under a recovery scenario (operating margins returning to 12%), the enormous asset base and below-cost-of-equity returns keep the stock priced at a deep discount to book value ($28/share). Substantial upside exists only if Intel's turnaround produces margins well above the assumptions used here.</li>
-  </ul>
-</div>
-
-<div class="warning">
-  <strong>Model Limitations:</strong> (1) Revenue growth assumptions are judgment-based, not regression-derived. (2) Operating margins assume gradual reversion; disruptive events (new chip architectures, trade restrictions, macro shocks) could cause step-changes. (3) The residual income model is sensitive to terminal value assumptions &mdash; the perpetuity accounts for 53% of NVIDIA's value above book. (4) Cost of equity uses historical betas that may not reflect forward risk. (5) No adjustment for optionality, real options, or strategic value of Intel's foundry assets. (6) Capital structure held constant &mdash; actual buybacks/issuance would shift equity and per-share values.
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
-<script>
-var PROJ = {"NVIDIA":[{"fy":2027,"rev":280719,"oi":162817,"ni":147939,"ta":295494,"eq":224576,"residual_income":126705,"npm":52.7,"om":58.0,"ato":0.95,"roe":94.1,"rev_growth":30.0},{"fy":2028,"rev":336863,"oi":185275,"ni":165535,"ta":374293,"eq":284462,"residual_income":135217,"npm":49.1,"om":55.0,"ato":0.9,"roe":73.7,"rev_growth":20.0},{"fy":2029,"rev":384024,"oi":199693,"ni":177419,"ta":451793,"eq":343363,"residual_income":139017,"npm":46.2,"om":52.0,"ato":0.85,"roe":62.4,"rev_growth":14.0},{"fy":2030,"rev":422427,"oi":211213,"ni":184072,"ta":515154,"eq":391517,"residual_income":137718,"npm":43.6,"om":50.0,"ato":0.82,"roe":53.6,"rev_growth":10.0},{"fy":2031,"rev":451996,"oi":216958,"ni":187579,"ta":564996,"eq":429397,"residual_income":134724,"npm":41.5,"om":48.0,"ato":0.8,"roe":47.9,"rev_growth":7.0}],"AMD":[{"fy":2026,"rev":43299,"oi":6062,"ni":5161,"ta":90206,"eq":73969,"residual_income":-2714,"npm":11.9,"om":14.0,"ato":0.48,"roe":8.2,"rev_growth":25.0},{"fy":2027,"rev":51958,"oi":8833,"ni":7594,"ta":99920,"eq":81935,"residual_income":-1652,"npm":14.6,"om":17.0,"ato":0.52,"roe":10.3,"rev_growth":20.0},{"fy":2028,"rev":60272,"oi":11452,"ni":9797,"ta":109585,"eq":89860,"residual_income":-445,"npm":16.3,"om":19.0,"ato":0.55,"roe":12.0,"rev_growth":16.0},{"fy":2029,"rev":68107,"oi":14303,"ni":12300,"ta":117426,"eq":96289,"residual_income":1068,"npm":18.1,"om":21.0,"ato":0.58,"roe":13.7,"rev_growth":13.0},{"fy":2030,"rev":74918,"oi":16482,"ni":14010,"ta":124863,"eq":102388,"residual_income":1973,"npm":18.7,"om":22.0,"ato":0.6,"roe":14.5,"rev_growth":10.0}],"Intel":[{"fy":2026,"rev":53910,"oi":1078,"ni":474,"ta":207346,"eq":124408,"residual_income":-11783,"npm":0.9,"om":2.0,"ato":0.26,"roe":0.4,"rev_growth":2.0},{"fy":2027,"rev":56066,"oi":3364,"ni":2536,"ta":207654,"eq":124592,"residual_income":-9531,"npm":4.5,"om":6.0,"ato":0.27,"roe":2.0,"rev_growth":4.0},{"fy":2028,"rev":59430,"oi":5349,"ni":4344,"ta":212252,"eq":127351,"residual_income":-7741,"npm":7.3,"om":9.0,"ato":0.28,"roe":3.5,"rev_growth":6.0},{"fy":2029,"rev":62402,"oi":6864,"ni":5675,"ta":215179,"eq":129108,"residual_income":-6678,"npm":9.1,"om":11.0,"ato":0.29,"roe":4.5,"rev_growth":5.0},{"fy":2030,"rev":64898,"oi":7788,"ni":6620,"ta":216327,"eq":129796,"residual_income":-5904,"npm":10.2,"om":12.0,"ato":0.3,"roe":5.1,"rev_growth":4.0}]};
-
-var QDATA = {"NVIDIA":[{"label":"FY27 Q1","price":55.06},{"label":"FY27 Q2","price":56.06},{"label":"FY27 Q3","price":57.06},{"label":"FY27 Q4","price":58.06},{"label":"FY28 Q1","price":58.94},{"label":"FY28 Q2","price":59.83},{"label":"FY28 Q3","price":60.71},{"label":"FY28 Q4","price":61.59},{"label":"FY29 Q1","price":62.46},{"label":"FY29 Q2","price":63.33},{"label":"FY29 Q3","price":64.20},{"label":"FY29 Q4","price":65.07},{"label":"FY30 Q1","price":65.88},{"label":"FY30 Q2","price":66.69},{"label":"FY30 Q3","price":67.50},{"label":"FY30 Q4","price":68.31},{"label":"FY31 Q1","price":69.09},{"label":"FY31 Q2","price":69.87},{"label":"FY31 Q3","price":70.65},{"label":"FY31 Q4","price":71.43}],"AMD":[{"label":"FY26 Q1","price":46.66},{"label":"FY26 Q2","price":48.93},{"label":"FY26 Q3","price":51.20},{"label":"FY26 Q4","price":53.48},{"label":"FY27 Q1","price":55.21},{"label":"FY27 Q2","price":56.94},{"label":"FY27 Q3","price":58.66},{"label":"FY27 Q4","price":60.39},{"label":"FY28 Q1","price":61.99},{"label":"FY28 Q2","price":63.59},{"label":"FY28 Q3","price":65.19},{"label":"FY28 Q4","price":66.79},{"label":"FY29 Q1","price":67.98},{"label":"FY29 Q2","price":69.17},{"label":"FY29 Q3","price":70.36},{"label":"FY29 Q4","price":71.55},{"label":"FY30 Q1","price":72.58},{"label":"FY30 Q2","price":73.60},{"label":"FY30 Q3","price":74.63},{"label":"FY30 Q4","price":75.66}],"Intel":[{"label":"FY26 Q1","price":8.09},{"label":"FY26 Q2","price":8.15},{"label":"FY26 Q3","price":8.21},{"label":"FY26 Q4","price":8.27},{"label":"FY27 Q1","price":8.34},{"label":"FY27 Q2","price":8.41},{"label":"FY27 Q3","price":8.49},{"label":"FY27 Q4","price":8.56},{"label":"FY28 Q1","price":8.68},{"label":"FY28 Q2","price":8.80},{"label":"FY28 Q3","price":8.92},{"label":"FY28 Q4","price":9.04},{"label":"FY29 Q1","price":9.04},{"label":"FY29 Q2","price":9.04},{"label":"FY29 Q3","price":9.05},{"label":"FY29 Q4","price":9.05},{"label":"FY30 Q1","price":8.94},{"label":"FY30 Q2","price":8.84},{"label":"FY30 Q3","price":8.73},{"label":"FY30 Q4","price":8.62}]};
-
-var VALS = {"NVIDIA":{"price_today":54.06,"yearly_prices":[{"fy":2027,"price":58.06},{"fy":2028,"price":61.59},{"fy":2029,"price":65.07},{"fy":2030,"price":68.31},{"fy":2031,"price":71.43}]},"AMD":{"price_today":44.38,"yearly_prices":[{"fy":2026,"price":53.48},{"fy":2027,"price":60.39},{"fy":2028,"price":66.79},{"fy":2029,"price":71.55},{"fy":2030,"price":75.66}]},"Intel":{"price_today":8.03,"yearly_prices":[{"fy":2026,"price":8.27},{"fy":2027,"price":8.56},{"fy":2028,"price":9.04},{"fy":2029,"price":9.05},{"fy":2030,"price":8.62}]}};
-
-var COLORS = {NVIDIA:{line:'#22c55e',bg:'rgba(34,197,94,0.15)'},AMD:{line:'#ef4444',bg:'rgba(239,68,68,0.15)'},Intel:{line:'#3b82f6',bg:'rgba(59,130,246,0.15)'}};
-
-function fmt(v, s) { if(v==null) return '—'; s=s||''; if(s==='%') return v.toFixed(1)+'%'; if(s==='x') return v.toFixed(2)+'x'; if(s==='$') return '$'+v.toLocaleString(); return String(v); }
-function cc(v) { return v>0?'positive':v<0?'negative':''; }
-
-// Build projection tables
-function buildProjTable(co) {
-  var rows = PROJ[co];
-  var h = '<div class="table-wrap"><table><thead><tr><th>FY</th><th>Revenue<br>($M)</th><th>Growth</th><th>Op Inc<br>($M)</th><th>Net Inc<br>($M)</th><th>NPM</th><th>OM</th><th>ATO</th><th>Total Assets<br>($M)</th><th>Equity<br>($M)</th><th>ROE</th><th>Residual<br>Income ($M)</th></tr></thead><tbody>';
-  rows.forEach(function(r) {
-    h += '<tr><td>'+r.fy+'</td><td>'+fmt(r.rev,'$')+'</td><td>'+fmt(r.rev_growth,'%')+'</td><td>'+fmt(r.oi,'$')+'</td><td class="'+cc(r.ni)+'">'+fmt(r.ni,'$')+'</td><td>'+fmt(r.npm,'%')+'</td><td>'+fmt(r.om,'%')+'</td><td>'+fmt(r.ato,'x')+'</td><td>'+fmt(r.ta,'$')+'</td><td>'+fmt(r.eq,'$')+'</td><td class="'+cc(r.roe)+'">'+fmt(r.roe,'%')+'</td><td class="'+cc(r.residual_income)+'">'+fmt(r.residual_income,'$')+'</td></tr>';
-  });
-  h += '</tbody></table></div>';
-  return h;
-}
-document.getElementById('tp-nvidia').innerHTML = buildProjTable('NVIDIA');
-document.getElementById('tp-amd').innerHTML = buildProjTable('AMD');
-document.getElementById('tp-intel').innerHTML = buildProjTable('Intel');
-
-// Tab switching
-document.querySelectorAll('.tab-buttons').forEach(function(c) {
-  c.querySelectorAll('.tab-btn').forEach(function(b) {
-    b.addEventListener('click', function() {
-      var tid = b.getAttribute('data-tab');
-      c.querySelectorAll('.tab-btn').forEach(function(x){x.classList.remove('active');});
-      b.classList.add('active');
-      c.parentElement.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active');});
-      document.getElementById(tid).classList.add('active');
-    });
-  });
-});
-
-// Quarterly table
-var qtc = document.getElementById('quarterlyTableContainer');
-var qt = '<div class="table-wrap"><table><thead><tr><th>#</th><th>NVIDIA</th><th>NVIDIA<br>Fair Value</th><th>AMD</th><th>AMD<br>Fair Value</th><th>Intel</th><th>Intel<br>Fair Value</th></tr></thead><tbody>';
-for (var i=0; i<20; i++) {
-  qt += '<tr><td>'+(i+1)+'</td>';
-  ['NVIDIA','AMD','Intel'].forEach(function(co) {
-    var q = QDATA[co][i];
-    qt += '<td>'+q.label+'</td><td class="'+cc(q.price)+'">$'+q.price.toFixed(2)+'</td>';
-  });
-  qt += '</tr>';
-}
-qt += '</tbody></table></div>';
-qtc.innerHTML = qt;
-
-// Fair value trajectory chart
-var fvLabels = ['Today'];
-var fvNV = [VALS.NVIDIA.price_today];
-var fvAMD = [VALS.AMD.price_today];
-var fvINTEL = [VALS.Intel.price_today];
-VALS.NVIDIA.yearly_prices.forEach(function(y,i) {
-  fvLabels.push('Year '+(i+1));
-  fvNV.push(y.price);
-  fvAMD.push(VALS.AMD.yearly_prices[i].price);
-  fvINTEL.push(VALS.Intel.yearly_prices[i].price);
-});
-
-new Chart(document.getElementById('priceChart'), {
-  type: 'line',
-  data: {
-    labels: fvLabels,
-    datasets: [
-      {label:'NVIDIA',data:fvNV,borderColor:COLORS.NVIDIA.line,backgroundColor:COLORS.NVIDIA.bg,borderWidth:3,pointRadius:5,tension:0.3,fill:true},
-      {label:'AMD',data:fvAMD,borderColor:COLORS.AMD.line,backgroundColor:COLORS.AMD.bg,borderWidth:3,pointRadius:5,tension:0.3,fill:true},
-      {label:'Intel',data:fvINTEL,borderColor:COLORS.Intel.line,backgroundColor:COLORS.Intel.bg,borderWidth:3,pointRadius:5,tension:0.3,fill:true}
-    ]
-  },
-  options: {responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'},tooltip:{callbacks:{label:function(c){return c.dataset.label+': $'+c.parsed.y.toFixed(2)}}}},scales:{y:{ticks:{callback:function(v){return '$'+v}},grid:{color:'rgba(128,128,128,0.15)'}},x:{grid:{display:false}}}}
-});
-
-// Revenue chart
-function makeProjectionChart(canvasId, field, label, prefix) {
-  var allFYs = new Set();
-  ['NVIDIA','AMD','Intel'].forEach(function(co){PROJ[co].forEach(function(r){allFYs.add(r.fy);});});
-  var fys = Array.from(allFYs).sort();
-  var datasets = ['NVIDIA','AMD','Intel'].map(function(co){
-    return {label:co,data:fys.map(function(fy){var row=PROJ[co].find(function(r){return r.fy===fy;});return row?row[field]:null;}),borderColor:COLORS[co].line,backgroundColor:COLORS[co].bg,borderWidth:2.5,pointRadius:3,tension:0.3,spanGaps:true,fill:false};
-  });
-  new Chart(document.getElementById(canvasId),{type:'line',data:{labels:fys.map(function(y){return 'FY'+y;}),datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{y:{ticks:{callback:function(v){return (prefix||'')+v.toLocaleString()+(prefix?'':'%');}},grid:{color:'rgba(128,128,128,0.15)'}},x:{grid:{display:false}}}}});
-}
-makeProjectionChart('revChart','rev','Revenue','$');
-makeProjectionChart('niChart','ni','Net Income','$');
-makeProjectionChart('roeChart','roe','ROE');
-makeProjectionChart('riChart','residual_income','Residual Income','$');
-
-// Quarterly price chart
-var qLabels = QDATA.NVIDIA.map(function(q){return q.label;});
-new Chart(document.getElementById('qPriceChart'), {
-  type: 'line',
-  data: {
-    labels: qLabels,
-    datasets: ['NVIDIA','AMD','Intel'].map(function(co){
-      return {label:co,data:QDATA[co].map(function(q){return q.price;}),borderColor:COLORS[co].line,backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:0.3};
-    })
-  },
-  options: {responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'},tooltip:{callbacks:{label:function(c){return c.dataset.label+': $'+c.parsed.y.toFixed(2)}}}},scales:{y:{ticks:{callback:function(v){return '$'+v}},grid:{color:'rgba(128,128,128,0.15)'}},x:{grid:{display:false},ticks:{maxRotation:45,autoSkip:true,maxTicksLimit:10}}}}
-});
-</script>
+<div class="note">One-time items are left out of the path. NVIDIA's Q1 2026 net margin sits above the operating margin because of equity-security gains, and the cash-flow statement removes $23.7bn of pretax gains in the first half. AMD's listing gain is not treated as ongoing. Intel's quarter includes about a $12.5bn mark on the escrowed-share derivative. Data Center was $89.0bn of the NVIDIA quarter. That is context. It is not a forecast line.</div>
+<h2>Five years, summed from the quarters</h2>
+<p>Year-1 revenue versus the trailing twelve months is 54.4% at NVIDIA, 27.0% at AMD, and 18.9% at Intel. NVIDIA's year-1 growth is above the old 30% path because the guide is the starting quarter.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Revenue</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead><tbody>
+<tr><td>Year 1</td><td>$467.7bn</td><td>$52.4bn</td><td>$67.8bn</td></tr>
+<tr><td>Year 2</td><td>$545.4bn</td><td>$60.9bn</td><td>$72.5bn</td></tr>
+<tr><td>Year 3</td><td>$610.6bn</td><td>$68.7bn</td><td>$76.4bn</td></tr>
+<tr><td>Year 4</td><td>$662.4bn</td><td>$75.2bn</td><td>$79.7bn</td></tr>
+<tr><td>Year 5</td><td>$700.9bn</td><td>$80.4bn</td><td>$82.5bn</td></tr>
+<tr><td class="bold">Year-1 revenue vs trailing</td><td class="bold">54.4%</td><td class="bold">27.0%</td><td class="bold">18.9%</td></tr>
+</tbody>
+</table></div>
+<div class="table-wrap"><table>
+<thead><tr><th>Net income</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead><tbody>
+<tr><td>Year 1</td><td>$279.9bn</td><td>$6.8bn</td><td>$0.6bn</td></tr>
+<tr><td>Year 2</td><td>$316.0bn</td><td>$8.5bn</td><td>$1.8bn</td></tr>
+<tr><td>Year 3</td><td>$342.2bn</td><td>$10.3bn</td><td>$3.1bn</td></tr>
+<tr><td>Year 4</td><td>$358.6bn</td><td>$12.0bn</td><td>$4.5bn</td></tr>
+<tr><td>Year 5</td><td>$366.0bn</td><td>$13.7bn</td><td>$6.0bn</td></tr>
+</tbody>
+</table></div>
+<div class="table-wrap"><table>
+<thead><tr><th>Operating margin</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead><tbody>
+<tr><td>Year 1</td><td>63.9%</td><td>16.5%</td><td>1.1%</td></tr>
+<tr><td>Year 2</td><td>61.9%</td><td>17.8%</td><td>3.2%</td></tr>
+<tr><td>Year 3</td><td>59.8%</td><td>19.0%</td><td>5.2%</td></tr>
+<tr><td>Year 4</td><td>57.8%</td><td>20.3%</td><td>7.2%</td></tr>
+<tr><td>Year 5</td><td>55.8%</td><td>21.5%</td><td>9.2%</td></tr>
+</tbody>
+</table></div>
+<h2>Valuation bridge</h2>
+<p>Equity each quarter is not a clean-surplus rollforward. Assets equal annualized revenue divided by the latest turnover, and equity is that asset total times the latest equity ratio. Per share uses diluted weighted-average shares: 24,285 million at NVIDIA, 1,659 million at AMD, and 5,104 million at Intel.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Bridge</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead><tbody>
+<tr><td>Cost of equity</td><td>13.5%</td><td>12.5%</td><td>9.7%</td></tr>
+<tr><td>Terminal growth</td><td>3.0%</td><td>3.0%</td><td>3.0%</td></tr>
+<tr><td>Opening book equity</td><td>$229.0bn</td><td>$67.2bn</td><td>$103.1bn</td></tr>
+<tr><td>PV of residual income</td><td>$1010.6bn</td><td class="negative">-$6.5bn</td><td class="negative">-$33.5bn</td></tr>
+<tr><td>PV of terminal value</td><td>$1530.8bn</td><td class="negative">-$2.6bn</td><td class="negative">-$57.9bn</td></tr>
+<tr><td class="bold">Equity value</td><td class="bold">$2770.5bn</td><td class="bold">$58.1bn</td><td class="bold">$11.8bn</td></tr>
+<tr><td>Diluted shares, millions</td><td>24,285</td><td>1,659</td><td>5,104</td></tr>
+<tr><td class="bold">Value per share</td><td class="bold">$114.08</td><td class="bold">$35.00</td><td class="bold">$2.30</td></tr>
+<tr><td>Prior annual model, per share</td><td>$54.06</td><td>$44.38</td><td>$8.03</td></tr>
+<tr><td>Market price, Oct 5, 2026</td><td>$236.16</td><td>$631.57</td><td>$117.40</td></tr>
+<tr><td>Intel sensitivity, per share</td><td>—</td><td>—</td><td class="bold">$7.70</td></tr>
+</tbody>
+</table></div>
+<p>Intel's base case glides from a trailing margin near breakeven to 10%, and the value is $2.30. Starting at this quarter's 11.1% operating margin and gliding to 12% produces $7.70 on equity value of $39.3bn. The prior quarter was an operating loss, so the latest margin is not the run-rate. Either figure is far from the October 5 market price of $117.40.</p>
+<h2>Twenty quarters</h2>
+<p>Revenue, margin, income, and ending equity are the path. Residual income and its present value use the quarterly cost of equity. The sum of the present-value column is the residual-income term in the bridge.</p>
+<h3 class="nvidia">NVIDIA</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Q</th><th>Revenue, $m</th><th>Operating margin</th><th>Operating income, $m</th><th>Net income, $m</th><th>Equity, end, $m</th><th>Residual income, $m</th><th>Present value, $m</th></tr></thead><tbody>
+<tr><td>1</td><td>108,000</td><td>64.7%</td><td>69,880</td><td>65,444</td><td>257,015</td><td>57,715</td><td>55,831</td></tr>
+<tr><td>2</td><td>114,480</td><td>64.2%</td><td>73,488</td><td>68,823</td><td>272,436</td><td>60,148</td><td>56,285</td></tr>
+<tr><td>3</td><td>120,204</td><td>63.7%</td><td>76,548</td><td>71,689</td><td>286,058</td><td>62,494</td><td>56,571</td></tr>
+<tr><td>4</td><td>125,012</td><td>63.2%</td><td>78,972</td><td>73,959</td><td>297,500</td><td>64,304</td><td>56,309</td></tr>
+<tr><td>5</td><td>129,388</td><td>62.7%</td><td>81,075</td><td>75,928</td><td>307,913</td><td>65,888</td><td>55,812</td></tr>
+<tr><td>6</td><td>133,916</td><td>62.1%</td><td>83,229</td><td>77,945</td><td>318,690</td><td>67,553</td><td>55,354</td></tr>
+<tr><td>7</td><td>138,603</td><td>61.6%</td><td>85,434</td><td>80,010</td><td>329,844</td><td>69,255</td><td>54,896</td></tr>
+<tr><td>8</td><td>143,454</td><td>61.1%</td><td>87,692</td><td>82,125</td><td>341,389</td><td>70,992</td><td>54,436</td></tr>
+<tr><td>9</td><td>147,041</td><td>60.6%</td><td>89,133</td><td>83,475</td><td>349,923</td><td>71,953</td><td>53,371</td></tr>
+<tr><td>10</td><td>150,717</td><td>60.1%</td><td>90,591</td><td>84,841</td><td>358,671</td><td>73,031</td><td>52,402</td></tr>
+<tr><td>11</td><td>154,485</td><td>59.6%</td><td>92,067</td><td>86,223</td><td>367,638</td><td>74,117</td><td>51,446</td></tr>
+<tr><td>12</td><td>158,347</td><td>59.1%</td><td>93,560</td><td>87,621</td><td>376,829</td><td>75,213</td><td>50,502</td></tr>
+<tr><td>13</td><td>161,197</td><td>58.6%</td><td>94,421</td><td>88,427</td><td>383,612</td><td>75,709</td><td>49,175</td></tr>
+<tr><td>14</td><td>164,099</td><td>58.1%</td><td>95,283</td><td>89,234</td><td>390,517</td><td>76,287</td><td>47,933</td></tr>
+<tr><td>15</td><td>167,052</td><td>57.6%</td><td>96,145</td><td>90,041</td><td>397,546</td><td>76,861</td><td>46,717</td></tr>
+<tr><td>16</td><td>170,059</td><td>57.0%</td><td>97,007</td><td>90,848</td><td>404,702</td><td>77,431</td><td>45,527</td></tr>
+<tr><td>17</td><td>172,100</td><td>56.5%</td><td>97,292</td><td>91,115</td><td>409,559</td><td>77,457</td><td>44,055</td></tr>
+<tr><td>18</td><td>174,165</td><td>56.0%</td><td>97,570</td><td>91,376</td><td>414,473</td><td>77,553</td><td>42,670</td></tr>
+<tr><td>19</td><td>176,255</td><td>55.5%</td><td>97,840</td><td>91,629</td><td>419,447</td><td>77,641</td><td>41,323</td></tr>
+<tr><td>20</td><td>178,370</td><td>55.0%</td><td>98,104</td><td>91,876</td><td>424,480</td><td>77,719</td><td>40,015</td></tr>
+</tbody>
+</table></div><h3 class="amd">AMD</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Q</th><th>Revenue, $m</th><th>Operating margin</th><th>Operating income, $m</th><th>Net income, $m</th><th>Equity, end, $m</th><th>Residual income, $m</th><th>Present value, $m</th></tr></thead><tbody>
+<tr><td>1</td><td>12,228</td><td>16.0%</td><td>1,959</td><td>1,548</td><td>71,257</td><td class="negative">-553</td><td class="negative">-536</td></tr>
+<tr><td>2</td><td>12,840</td><td>16.3%</td><td>2,098</td><td>1,657</td><td>74,820</td><td class="negative">-570</td><td class="negative">-536</td></tr>
+<tr><td>3</td><td>13,417</td><td>16.7%</td><td>2,234</td><td>1,765</td><td>78,187</td><td class="negative">-573</td><td class="negative">-523</td></tr>
+<tr><td>4</td><td>13,954</td><td>17.0%</td><td>2,367</td><td>1,870</td><td>81,315</td><td class="negative">-573</td><td class="negative">-507</td></tr>
+<tr><td>5</td><td>14,442</td><td>17.3%</td><td>2,496</td><td>1,972</td><td>84,161</td><td class="negative">-569</td><td class="negative">-488</td></tr>
+<tr><td>6</td><td>14,948</td><td>17.6%</td><td>2,630</td><td>2,078</td><td>87,106</td><td class="negative">-552</td><td class="negative">-459</td></tr>
+<tr><td>7</td><td>15,471</td><td>17.9%</td><td>2,771</td><td>2,189</td><td>90,155</td><td class="negative">-533</td><td class="negative">-430</td></tr>
+<tr><td>8</td><td>16,013</td><td>18.2%</td><td>2,918</td><td>2,305</td><td>93,311</td><td class="negative">-512</td><td class="negative">-400</td></tr>
+<tr><td>9</td><td>16,461</td><td>18.5%</td><td>3,052</td><td>2,411</td><td>95,923</td><td class="negative">-505</td><td class="negative">-383</td></tr>
+<tr><td>10</td><td>16,922</td><td>18.9%</td><td>3,190</td><td>2,520</td><td>98,609</td><td class="negative">-477</td><td class="negative">-351</td></tr>
+<tr><td>11</td><td>17,396</td><td>19.2%</td><td>3,334</td><td>2,634</td><td>101,370</td><td class="negative">-447</td><td class="negative">-319</td></tr>
+<tr><td>12</td><td>17,883</td><td>19.5%</td><td>3,484</td><td>2,752</td><td>104,208</td><td class="negative">-415</td><td class="negative">-287</td></tr>
+<tr><td>13</td><td>18,240</td><td>19.8%</td><td>3,611</td><td>2,853</td><td>106,293</td><td class="negative">-404</td><td class="negative">-271</td></tr>
+<tr><td>14</td><td>18,605</td><td>20.1%</td><td>3,742</td><td>2,956</td><td>108,418</td><td class="negative">-366</td><td class="negative">-238</td></tr>
+<tr><td>15</td><td>18,977</td><td>20.4%</td><td>3,876</td><td>3,062</td><td>110,587</td><td class="negative">-326</td><td class="negative">-205</td></tr>
+<tr><td>16</td><td>19,357</td><td>20.7%</td><td>4,015</td><td>3,172</td><td>112,799</td><td class="negative">-284</td><td class="negative">-174</td></tr>
+<tr><td>17</td><td>19,647</td><td>21.1%</td><td>4,137</td><td>3,268</td><td>114,491</td><td class="negative">-257</td><td class="negative">-152</td></tr>
+<tr><td>18</td><td>19,942</td><td>21.4%</td><td>4,262</td><td>3,367</td><td>116,208</td><td class="negative">-211</td><td class="negative">-121</td></tr>
+<tr><td>19</td><td>20,241</td><td>21.7%</td><td>4,389</td><td>3,468</td><td>117,951</td><td class="negative">-164</td><td class="negative">-91</td></tr>
+<tr><td>20</td><td>20,545</td><td>22.0%</td><td>4,520</td><td>3,571</td><td>119,720</td><td class="negative">-115</td><td class="negative">-62</td></tr>
+</tbody>
+</table></div><h3 class="intel">Intel</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Q</th><th>Revenue, $m</th><th>Operating margin</th><th>Operating income, $m</th><th>Net income, $m</th><th>Equity, end, $m</th><th>Residual income, $m</th><th>Present value, $m</th></tr></thead><tbody>
+<tr><td>1</td><td>16,451</td><td>0.4%</td><td>61</td><td>48</td><td>105,206</td><td class="negative">-2,453</td><td class="negative">-2,395</td></tr>
+<tr><td>2</td><td>16,780</td><td>0.9%</td><td>147</td><td>116</td><td>107,310</td><td class="negative">-2,435</td><td class="negative">-2,321</td></tr>
+<tr><td>3</td><td>17,115</td><td>1.4%</td><td>237</td><td>187</td><td>109,456</td><td class="negative">-2,415</td><td class="negative">-2,247</td></tr>
+<tr><td>4</td><td>17,457</td><td>1.9%</td><td>330</td><td>261</td><td>111,645</td><td class="negative">-2,393</td><td class="negative">-2,175</td></tr>
+<tr><td>5</td><td>17,719</td><td>2.4%</td><td>425</td><td>336</td><td>113,320</td><td class="negative">-2,372</td><td class="negative">-2,104</td></tr>
+<tr><td>6</td><td>17,985</td><td>2.9%</td><td>523</td><td>413</td><td>115,020</td><td class="negative">-2,335</td><td class="negative">-2,022</td></tr>
+<tr><td>7</td><td>18,255</td><td>3.4%</td><td>623</td><td>492</td><td>116,745</td><td class="negative">-2,297</td><td class="negative">-1,942</td></tr>
+<tr><td>8</td><td>18,529</td><td>3.9%</td><td>726</td><td>574</td><td>118,496</td><td class="negative">-2,257</td><td class="negative">-1,864</td></tr>
+<tr><td>9</td><td>18,751</td><td>4.4%</td><td>830</td><td>656</td><td>119,918</td><td class="negative">-2,218</td><td class="negative">-1,788</td></tr>
+<tr><td>10</td><td>18,976</td><td>4.9%</td><td>936</td><td>739</td><td>121,357</td><td class="negative">-2,169</td><td class="negative">-1,707</td></tr>
+<tr><td>11</td><td>19,204</td><td>5.4%</td><td>1,045</td><td>825</td><td>122,814</td><td class="negative">-2,118</td><td class="negative">-1,627</td></tr>
+<tr><td>12</td><td>19,434</td><td>5.9%</td><td>1,156</td><td>913</td><td>124,287</td><td class="negative">-2,065</td><td class="negative">-1,549</td></tr>
+<tr><td>13</td><td>19,629</td><td>6.5%</td><td>1,267</td><td>1,001</td><td>125,530</td><td class="negative">-2,013</td><td class="negative">-1,475</td></tr>
+<tr><td>14</td><td>19,825</td><td>7.0%</td><td>1,380</td><td>1,090</td><td>126,785</td><td class="negative">-1,954</td><td class="negative">-1,397</td></tr>
+<tr><td>15</td><td>20,023</td><td>7.5%</td><td>1,495</td><td>1,181</td><td>128,053</td><td class="negative">-1,894</td><td class="negative">-1,322</td></tr>
+<tr><td>16</td><td>20,223</td><td>8.0%</td><td>1,612</td><td>1,274</td><td>129,334</td><td class="negative">-1,831</td><td class="negative">-1,248</td></tr>
+<tr><td>17</td><td>20,385</td><td>8.5%</td><td>1,729</td><td>1,366</td><td>130,369</td><td class="negative">-1,771</td><td class="negative">-1,178</td></tr>
+<tr><td>18</td><td>20,548</td><td>9.0%</td><td>1,847</td><td>1,459</td><td>131,411</td><td class="negative">-1,703</td><td class="negative">-1,106</td></tr>
+<tr><td>19</td><td>20,713</td><td>9.5%</td><td>1,966</td><td>1,553</td><td>132,463</td><td class="negative">-1,633</td><td class="negative">-1,036</td></tr>
+<tr><td>20</td><td>20,878</td><td>10.0%</td><td>2,088</td><td>1,649</td><td>133,522</td><td class="negative">-1,563</td><td class="negative">-968</td></tr>
+</tbody>
+</table></div>
+<h2>What this page keeps in view</h2>
+<p>The DuPont ratios behind the latest quarter and the trailing year are in <a href="dupont-analysis.html">dupont-analysis.html</a>. Quick-pricing coefficients in <a href="quick-pricing-formulas.html">quick-pricing-formulas.html</a> were fit to the annual model and are superseded. The Form 10-K discussion stays in the PDF for strategy. These calculations are the quarters.</p>
+<p class="subtitle">Analysis for study purposes, not investment advice.</p>
 
 </body>
 </html>

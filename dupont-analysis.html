@@ -3,23 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="snowflake-source" content="cortex-agent-authored" />
-  <title>DuPont Analysis: NVIDIA vs AMD vs Intel</title>
-  <script type="application/json" id="snowflake-report-metadata">
-  {
-    "generated": "2026-10-05",
-    "intent": "DuPont and Advanced DuPont decomposition comparison across NVIDIA, AMD, and Intel using 10-K financial data",
-    "dataSources": [
-      { "type": "file", "path": "10k_financial_statements.json", "description": "Extracted financial metrics from 10-K filings for NVIDIA (FY2018-2026), AMD (FY2018-2025), Intel (FY2018-2025)" }
-    ],
-    "sections": [
-      { "id": "three-part", "title": "3-Part DuPont", "producerNotes": "ROE = NPM x ATO x EM. Point-in-time balance sheet values used." },
-      { "id": "five-part", "title": "5-Part DuPont", "producerNotes": "ROE = Tax Burden x Interest Burden x EBIT Margin x ATO x EM. Tax data missing for AMD and Intel in several years." },
-      { "id": "advanced", "title": "Advanced DuPont (Palepu-Healy)", "producerNotes": "ROE = RNOA + Spread x FLEV. Average BS values used. NFO = Fin Obligations - Fin Assets." },
-      { "id": "comparative", "title": "Comparative Summary", "producerNotes": "Most recent 3 years per company." }
-    ]
-  }
-  </script>
+  <title>Quarterly DuPont: NVIDIA, AMD, Intel</title>
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -34,393 +18,230 @@
     h1 { font-size: 1.75rem; margin-bottom: 0.25em; color: light-dark(#0f172a, #f1f5f9); }
     h2 { font-size: 1.35rem; margin-top: 2em; color: light-dark(#1e40af, #93c5fd); border-bottom: 2px solid light-dark(#dbeafe, #1e3a5f); padding-bottom: 0.3em; }
     h3 { font-size: 1.1rem; margin-top: 1.5em; color: light-dark(#374151, #d1d5db); }
+    p { margin: 0.6em 0; }
+    a { color: light-dark(#1d4ed8, #93c5fd); }
     .subtitle { color: light-dark(#64748b, #94a3b8); margin-top: 0; font-size: 0.95rem; }
-    .formula { background: light-dark(#f0f9ff, #1e293b); border: 1px solid light-dark(#bfdbfe, #334155); border-radius: 6px; padding: 10px 16px; margin: 12px 0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.9rem; }
+    .formula { background: light-dark(#f0f9ff, #1e293b); border: 1px solid light-dark(#bfdbfe, #334155); border-radius: 6px; padding: 10px 16px; margin: 12px 0; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.88rem; }
     .note { background: light-dark(#fffbeb, #1c1917); border-left: 3px solid light-dark(#f59e0b, #d97706); padding: 8px 14px; margin: 12px 0; font-size: 0.85rem; color: light-dark(#92400e, #fbbf24); }
+    .info { background: light-dark(#eff6ff, #0c1929); border-left: 3px solid light-dark(#3b82f6, #60a5fa); padding: 8px 14px; margin: 12px 0; font-size: 0.85rem; color: light-dark(#1e40af, #93c5fd); }
+    .warning { background: light-dark(#fef2f2, #1c0a0a); border-left: 3px solid light-dark(#ef4444, #dc2626); padding: 8px 14px; margin: 12px 0; font-size: 0.85rem; color: light-dark(#991b1b, #fca5a5); }
     .table-wrap { overflow-x: auto; margin: 16px 0; }
-    table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
     th, td { border: 1px solid light-dark(#e2e8f0, #334155); padding: 5px 8px; text-align: right; white-space: nowrap; }
     th { background: light-dark(#f1f5f9, #1e293b); font-weight: 600; text-align: center; }
     th:first-child, td:first-child { text-align: left; }
-    .company-header { background: light-dark(#dbeafe, #1e3a5f); font-weight: 700; text-align: left; }
+    .section td { background: light-dark(#dbeafe, #1e3a5f); font-weight: 700; text-align: left; }
     .positive { color: light-dark(#15803d, #4ade80); }
     .negative { color: light-dark(#dc2626, #f87171); }
-    .highlight-row { background: light-dark(#fefce8, #1c1917); }
-    .chart-box { position: relative; width: 100%; height: clamp(280px, 40vw, 380px); margin: 16px 0; }
-    .chart-box > canvas { width: 100% !important; height: 100% !important; }
-    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 24px; }
-    .tab-container { margin: 16px 0; }
-    .tab-buttons { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 0; }
-    .tab-btn { padding: 6px 16px; border: 1px solid light-dark(#d1d5db, #475569); background: light-dark(#f9fafb, #1e293b); color: light-dark(#374151, #d1d5db); cursor: pointer; border-radius: 6px 6px 0 0; font-size: 0.85rem; border-bottom: none; }
-    .tab-btn.active { background: light-dark(#ffffff, #0f172a); color: light-dark(#1e40af, #93c5fd); font-weight: 600; border-color: light-dark(#93c5fd, #3b82f6); }
-    .tab-panel { display: none; border: 1px solid light-dark(#d1d5db, #475569); border-radius: 0 6px 6px 6px; padding: 16px; }
-    .tab-panel.active { display: block; }
+    .bold { font-weight: 700; }
     .insight-box { background: light-dark(#f0fdf4, #052e16); border: 1px solid light-dark(#86efac, #166534); border-radius: 6px; padding: 12px 16px; margin: 16px 0; }
     .insight-box h4 { margin: 0 0 6px 0; color: light-dark(#166534, #4ade80); font-size: 0.95rem; }
     .insight-box ul { margin: 4px 0; padding-left: 20px; font-size: 0.88rem; }
-    img, svg { max-width: 100%; height: auto; }
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0 20px; }
     .kpi { background: light-dark(#f8fafc, #1e293b); border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 12px; text-align: center; }
-    .kpi-label { font-size: 0.75rem; color: light-dark(#64748b, #94a3b8); text-transform: uppercase; letter-spacing: 0.05em; }
-    .kpi-value { font-size: 1.4rem; font-weight: 700; margin-top: 2px; }
+    .kpi-label { font-size: 0.72rem; color: light-dark(#64748b, #94a3b8); text-transform: uppercase; letter-spacing: 0.05em; }
+    .kpi-value { font-size: 1.35rem; font-weight: 700; margin-top: 2px; }
+    .kpi-sub { font-size: 0.75rem; color: light-dark(#94a3b8, #64748b); margin-top: 2px; }
     .nvidia { color: light-dark(#16a34a, #4ade80); }
     .amd { color: light-dark(#dc2626, #f87171); }
     .intel { color: light-dark(#2563eb, #60a5fa); }
-  </style>
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .card { background: light-dark(#f8fafc, #1e293b); border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 14px; }
+    .card h3 { margin-top: 0; }
+    .latest { box-shadow: inset 0 -2px 0 light-dark(#16a34a, #4ade80); }
+</style>
 </head>
 <body>
 
-<h1>DuPont &amp; Advanced DuPont Analysis</h1>
-<p class="subtitle">NVIDIA vs AMD vs Intel &mdash; Financial Performance Decomposition from 10-K Filings</p>
-
+<h1>Quarterly DuPont analysis</h1>
+<p class="subtitle">NVIDIA, AMD, and Intel · Q3 2024 through Q2 2026 · Prepared October 6, 2026</p>
 <div class="note">
-  Data sourced from SEC 10-K filings. NVIDIA fiscal year ends in January (FY2026 = ending Jan 2026). AMD and Intel use calendar year-end. Dollar amounts in millions. Some Intel/AMD tax and interest data was unavailable in parsed filings; where missing, effective tax rates were estimated.
+  Ratios, the comparison, and the forecast use quarterly statements. The Form 10-K remains the strategic source in the PDF. Q2 2024 is the opening balance for the averages and is not a ratio column. NVIDIA's quarter ends about four weeks after AMD and Intel, so the columns are calendar slots.
 </div>
+<div class="cards">
 
-<!-- Latest Year KPIs -->
-<h2>Latest Period Snapshot</h2>
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:16px 0;">
-  <div>
-    <h3 class="nvidia" style="margin:0 0 8px">NVIDIA (FY2026)</h3>
-    <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);">
-      <div class="kpi"><div class="kpi-label">ROE</div><div class="kpi-value nvidia">76.3%</div></div>
-      <div class="kpi"><div class="kpi-label">NPM</div><div class="kpi-value nvidia">55.6%</div></div>
-      <div class="kpi"><div class="kpi-label">ATO</div><div class="kpi-value nvidia">1.04x</div></div>
-      <div class="kpi"><div class="kpi-label">Op Margin</div><div class="kpi-value nvidia">60.4%</div></div>
+    <div class="card">
+      <h3 class="nvidia">NVIDIA</h3>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Latest operating margin</div><div class="kpi-value nvidia">66.2%</div><div class="kpi-sub">Q2 26 · 2026-07-26</div></div>
+        <div class="kpi"><div class="kpi-label">ROE, annualized</div><div class="kpi-value nvidia">112.5%</div><div class="kpi-sub">Quarter x 4 · quarter itself 28.12%</div></div>
+        <div class="kpi"><div class="kpi-label">Trailing ROE</div><div class="kpi-value nvidia">117.2%</div><div class="kpi-sub">Net income $192.9bn</div></div>
+        <div class="kpi"><div class="kpi-label">Trailing operating margin</div><div class="kpi-value nvidia">65.2%</div><div class="kpi-sub">Revenue $303.0bn</div></div>
+      </div>
     </div>
-  </div>
-  <div>
-    <h3 class="amd" style="margin:0 0 8px">AMD (FY2025)</h3>
-    <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);">
-      <div class="kpi"><div class="kpi-label">ROE</div><div class="kpi-value amd">6.9%</div></div>
-      <div class="kpi"><div class="kpi-label">NPM</div><div class="kpi-value amd">12.5%</div></div>
-      <div class="kpi"><div class="kpi-label">ATO</div><div class="kpi-value amd">0.45x</div></div>
-      <div class="kpi"><div class="kpi-label">Op Margin</div><div class="kpi-value amd">10.7%</div></div>
+    <div class="card">
+      <h3 class="amd">AMD</h3>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Latest operating margin</div><div class="kpi-value amd">17.3%</div><div class="kpi-sub">Q2 26 · 2026-06-27</div></div>
+        <div class="kpi"><div class="kpi-label">ROE, annualized</div><div class="kpi-value amd">14.0%</div><div class="kpi-sub">Quarter x 4 · quarter itself 3.49%</div></div>
+        <div class="kpi"><div class="kpi-label">Trailing ROE</div><div class="kpi-value amd">10.1%</div><div class="kpi-sub">Net income $6.4bn</div></div>
+        <div class="kpi"><div class="kpi-label">Trailing operating margin</div><div class="kpi-value amd">15.7%</div><div class="kpi-sub">Revenue $41.3bn</div></div>
+      </div>
     </div>
-  </div>
-  <div>
-    <h3 class="intel" style="margin:0 0 8px">Intel (FY2025)</h3>
-    <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);">
-      <div class="kpi"><div class="kpi-label">ROE</div><div class="kpi-value intel">-0.2%</div></div>
-      <div class="kpi"><div class="kpi-label">NPM</div><div class="kpi-value intel">-0.5%</div></div>
-      <div class="kpi"><div class="kpi-label">ATO</div><div class="kpi-value intel">0.25x</div></div>
-      <div class="kpi"><div class="kpi-label">Op Margin</div><div class="kpi-value intel">-4.2%</div></div>
+    <div class="card">
+      <h3 class="intel">Intel</h3>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">Latest operating margin</div><div class="kpi-value intel">11.1%</div><div class="kpi-sub">Q2 26 · 2026-06-27</div></div>
+        <div class="kpi"><div class="kpi-label">ROE, annualized</div><div class="kpi-value intel">-38.0%</div><div class="kpi-sub">Quarter x 4 · quarter itself -9.51%</div></div>
+        <div class="kpi"><div class="kpi-label">Trailing ROE</div><div class="kpi-value intel">-10.7%</div><div class="kpi-sub">Net income -$11.2bn</div></div>
+        <div class="kpi"><div class="kpi-label">Trailing operating margin</div><div class="kpi-value intel">-0.1%</div><div class="kpi-sub">Revenue $57.0bn</div></div>
+      </div>
     </div>
-  </div>
 </div>
-
-<!-- ROE Trend Chart -->
-<h2 id="roe-trend">ROE Trend</h2>
-<div class="chart-box"><canvas id="roeChart"></canvas></div>
-
-<!-- Section 1: 3-Part DuPont -->
-<h2 id="three-part">1. Traditional 3-Part DuPont Decomposition</h2>
-<div class="formula">ROE = Net Profit Margin &times; Asset Turnover &times; Equity Multiplier = (NI / Revenue) &times; (Revenue / Total Assets) &times; (Total Assets / Equity)</div>
-
-<div class="tab-container">
-  <div class="tab-buttons" id="tabs3">
-    <button class="tab-btn active" data-tab="t3-nvidia">NVIDIA</button>
-    <button class="tab-btn" data-tab="t3-amd">AMD</button>
-    <button class="tab-btn" data-tab="t3-intel">Intel</button>
-  </div>
-  <div class="tab-panel active" id="t3-nvidia"></div>
-  <div class="tab-panel" id="t3-amd"></div>
-  <div class="tab-panel" id="t3-intel"></div>
-</div>
-
-<div class="chart-grid">
-  <div><h3>Net Profit Margin</h3><div class="chart-box"><canvas id="npmChart"></canvas></div></div>
-  <div><h3>Asset Turnover</h3><div class="chart-box"><canvas id="atoChart"></canvas></div></div>
-</div>
-<div class="chart-grid">
-  <div><h3>Equity Multiplier</h3><div class="chart-box"><canvas id="emChart"></canvas></div></div>
-</div>
-
+<h2>How the identity is computed</h2>
+<div class="formula">Quarterly ROE = net margin x asset turnover x equity multiplier = (net income / revenue) x (revenue / average assets) x (average assets / average equity)</div>
+<div class="formula">Modified ROE = operating ROA + (operating ROA − net borrowing cost) x net financial leverage</div>
+<p>NOPAT is net income plus after-tax net interest at the 21% statutory rate. Net debt is debt plus the long-term operating-lease line, minus cash and liquid investments. Average balances are the opening quarter and the closing quarter. YES is the unrounded quarterly identity. An annualized row is that quarter times four, so it can sit next to an annual cost of equity. It is not a second identity. Trailing twelve months sums four quarters and divides by the average of the balance before the window and the balance at the end.</p>
+<div class="info">AMD interest income is annual-only in the filing taxonomy, so modified DuPont is n.m. for AMD. The taxed-operating-income row is filled in for all three. Intel net income is consolidated profit, and Intel equity includes non-controlling interests.</div>
+<h2>Eight ratio quarters</h2>
+<h3 class="nvidia">NVIDIA</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr><th>Line</th><th>Q3 24</th><th>Q4 24</th><th>Q1 25</th><th>Q2 25</th><th>Q3 25</th><th>Q4 25</th><th>Q1 26</th><th class="latest">Q2 26</th></tr>
+<tr><th>Quarter-end</th><th>2024-10-27</th><th>2025-01-26</th><th>2025-04-27</th><th>2025-07-27</th><th>2025-10-26</th><th>2026-01-25</th><th>2026-04-26</th><th class="latest">2026-07-26</th></tr>
+</thead>
+<tbody>
+<tr class="section"><td colspan="9">Statement lines, $ millions</td></tr>
+<tr><td>Revenue</td><td>35,082</td><td>39,331</td><td>44,062</td><td>46,743</td><td>57,006</td><td>68,127</td><td>81,615</td><td>96,221</td></tr>
+<tr><td>Operating income</td><td>21,869</td><td>24,033</td><td>21,638</td><td>28,440</td><td>36,010</td><td>44,299</td><td>53,536</td><td>63,734</td></tr>
+<tr><td>Net income</td><td>19,309</td><td>22,091</td><td>18,775</td><td>26,422</td><td>31,910</td><td>42,960</td><td>58,321</td><td>59,688</td></tr>
+<tr class="section"><td colspan="9">Traditional DuPont, on the quarter</td></tr>
+<tr><td>Net margin</td><td>55.04%</td><td>56.17%</td><td>42.61%</td><td>56.53%</td><td>55.98%</td><td>63.06%</td><td>71.46%</td><td>62.03%</td></tr>
+<tr><td>Asset turnover</td><td>0.39x</td><td>0.38x</td><td>0.37x</td><td>0.35x</td><td>0.38x</td><td>0.37x</td><td>0.35x</td><td>0.33x</td></tr>
+<tr><td>Equity multiplier</td><td>1.46x</td><td>1.43x</td><td>1.45x</td><td>1.45x</td><td>1.38x</td><td>1.33x</td><td>1.32x</td><td>1.37x</td></tr>
+<tr><td class="bold">ROE</td><td class="bold">31.13%</td><td class="bold">30.42%</td><td class="bold">23.01%</td><td class="bold">28.72%</td><td class="bold">29.14%</td><td class="bold">31.11%</td><td class="bold">33.06%</td><td class="bold">28.12%</td></tr>
+<tr><td class="bold">Identity: margin x turnover x leverage</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td></tr>
+<tr class="section"><td colspan="9">Modified DuPont, on the quarter</td></tr>
+<tr><td>NOPAT margin</td><td>54.11%</td><td>55.26%</td><td>41.80%</td><td>55.63%</td><td>55.20%</td><td>62.48%</td><td>71.03%</td><td>61.81%</td></tr>
+<tr><td>NOA turnover</td><td>1.00x</td><td>0.94x</td><td>1.02x</td><td>1.00x</td><td>0.93x</td><td>0.78x</td><td>0.70x</td><td>0.65x</td></tr>
+<tr><td class="bold">Operating ROA</td><td class="bold">53.87%</td><td class="bold">52.08%</td><td class="bold">42.72%</td><td class="bold">55.46%</td><td class="bold">51.41%</td><td class="bold">48.78%</td><td class="bold">49.76%</td><td class="bold">40.29%</td></tr>
+<tr><td>Net borrowing cost</td><td>1.21%</td><td>1.15%</td><td>0.93%</td><td>0.93%</td><td>0.92%</td><td>0.77%</td><td>0.58%</td><td>0.33%</td></tr>
+<tr><td>Spread</td><td>52.65%</td><td>50.93%</td><td>41.79%</td><td>54.53%</td><td>50.49%</td><td>48.00%</td><td>49.18%</td><td>39.96%</td></tr>
+<tr><td>Net financial leverage</td><td class="negative">-0.43x</td><td class="negative">-0.43x</td><td class="negative">-0.47x</td><td class="negative">-0.49x</td><td class="negative">-0.44x</td><td class="negative">-0.37x</td><td class="negative">-0.34x</td><td class="negative">-0.30x</td></tr>
+<tr><td class="bold">Leverage gain</td><td class="negative bold">-22.74%</td><td class="negative bold">-21.66%</td><td class="negative bold">-19.70%</td><td class="negative bold">-26.74%</td><td class="negative bold">-22.27%</td><td class="negative bold">-17.67%</td><td class="negative bold">-16.69%</td><td class="negative bold">-12.17%</td></tr>
+<tr><td class="bold">ROE</td><td class="bold">31.13%</td><td class="bold">30.42%</td><td class="bold">23.01%</td><td class="bold">28.72%</td><td class="bold">29.14%</td><td class="bold">31.11%</td><td class="bold">33.06%</td><td class="bold">28.12%</td></tr>
+<tr><td class="bold">Identity: operating ROA + gain</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td></tr>
+<tr><td>Operating income x 0.79 / average NOA</td><td>49.02%</td><td>45.50%</td><td>39.64%</td><td>47.92%</td><td>46.48%</td><td>40.10%</td><td>36.30%</td><td>34.11%</td></tr>
+<tr class="section"><td colspan="9">Annualized, the quarter times four. Margins are not annualized.</td></tr>
+<tr><td class="bold">ROE, annualized</td><td class="bold">124.52%</td><td class="bold">121.69%</td><td class="bold">92.05%</td><td class="bold">114.89%</td><td class="bold">116.55%</td><td class="bold">124.44%</td><td class="bold">132.26%</td><td class="bold">112.50%</td></tr>
+<tr><td>Asset turnover, annualized</td><td>1.55x</td><td>1.52x</td><td>1.49x</td><td>1.41x</td><td>1.51x</td><td>1.48x</td><td>1.40x</td><td>1.33x</td></tr>
+<tr><td class="bold">Operating ROA, annualized</td><td class="bold">215.47%</td><td class="bold">208.34%</td><td class="bold">170.86%</td><td class="bold">221.84%</td><td class="bold">205.64%</td><td class="bold">195.10%</td><td class="bold">199.03%</td><td class="bold">161.17%</td></tr>
+<tr><td>Taxed operating income / average NOA, annualized</td><td>196.08%</td><td>181.98%</td><td>158.58%</td><td>191.67%</td><td>185.92%</td><td>160.40%</td><td>145.20%</td><td>136.44%</td></tr>
+</tbody>
+</table></div><h3 class="amd">AMD</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr><th>Line</th><th>Q3 24</th><th>Q4 24</th><th>Q1 25</th><th>Q2 25</th><th>Q3 25</th><th>Q4 25</th><th>Q1 26</th><th class="latest">Q2 26</th></tr>
+<tr><th>Quarter-end</th><th>2024-09-28</th><th>2024-12-28</th><th>2025-03-29</th><th>2025-06-28</th><th>2025-09-27</th><th>2025-12-27</th><th>2026-03-28</th><th class="latest">2026-06-27</th></tr>
+</thead>
+<tbody>
+<tr class="section"><td colspan="9">Statement lines, $ millions</td></tr>
+<tr><td>Revenue</td><td>6,819</td><td>7,658</td><td>7,438</td><td>7,685</td><td>9,246</td><td>10,270</td><td>10,253</td><td>11,536</td></tr>
+<tr><td>Operating income</td><td>724</td><td>871</td><td>806</td><td class="negative">-134</td><td>1,270</td><td>1,752</td><td>1,476</td><td>1,990</td></tr>
+<tr><td>Net income</td><td>771</td><td>482</td><td>709</td><td>872</td><td>1,243</td><td>1,511</td><td>1,383</td><td>2,297</td></tr>
+<tr class="section"><td colspan="9">Traditional DuPont, on the quarter</td></tr>
+<tr><td>Net margin</td><td>11.31%</td><td>6.29%</td><td>9.53%</td><td>11.35%</td><td>13.44%</td><td>14.71%</td><td>13.49%</td><td>19.91%</td></tr>
+<tr><td>Asset turnover</td><td>0.10x</td><td>0.11x</td><td>0.11x</td><td>0.11x</td><td>0.12x</td><td>0.13x</td><td>0.13x</td><td>0.14x</td></tr>
+<tr><td>Equity multiplier</td><td>1.21x</td><td>1.21x</td><td>1.22x</td><td>1.25x</td><td>1.26x</td><td>1.24x</td><td>1.23x</td><td>1.25x</td></tr>
+<tr><td class="bold">ROE</td><td class="bold">1.36%</td><td class="bold">0.84%</td><td class="bold">1.23%</td><td class="bold">1.48%</td><td class="bold">2.06%</td><td class="bold">2.44%</td><td class="bold">2.17%</td><td class="bold">3.49%</td></tr>
+<tr><td class="bold">Identity: margin x turnover x leverage</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td></tr>
+<tr class="section"><td colspan="9">Modified DuPont, on the quarter</td></tr>
+<tr><td>NOPAT margin</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td></tr>
+<tr><td>NOA turnover</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td></tr>
+<tr><td class="bold">Operating ROA</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td></tr>
+<tr><td>Net borrowing cost</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td></tr>
+<tr><td>Spread</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td></tr>
+<tr><td>Net financial leverage</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td><td>n.m.</td></tr>
+<tr><td class="bold">Leverage gain</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td></tr>
+<tr><td class="bold">ROE</td><td class="bold">1.36%</td><td class="bold">0.84%</td><td class="bold">1.23%</td><td class="bold">1.48%</td><td class="bold">2.06%</td><td class="bold">2.44%</td><td class="bold">2.17%</td><td class="bold">3.49%</td></tr>
+<tr><td class="bold">Identity: operating ROA + gain</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td></tr>
+<tr><td>Operating income x 0.79 / average NOA</td><td>1.06%</td><td>1.26%</td><td>1.16%</td><td class="negative">-0.19%</td><td>1.74%</td><td>2.43%</td><td>2.08%</td><td>2.75%</td></tr>
+<tr class="section"><td colspan="9">Annualized, the quarter times four. Margins are not annualized.</td></tr>
+<tr><td class="bold">ROE, annualized</td><td class="bold">5.43%</td><td class="bold">3.37%</td><td class="bold">4.91%</td><td class="bold">5.93%</td><td class="bold">8.26%</td><td class="bold">9.77%</td><td class="bold">8.68%</td><td class="bold">13.95%</td></tr>
+<tr><td>Asset turnover, annualized</td><td>0.40x</td><td>0.44x</td><td>0.42x</td><td>0.42x</td><td>0.49x</td><td>0.53x</td><td>0.52x</td><td>0.56x</td></tr>
+<tr><td class="bold">Operating ROA, annualized</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td><td class="bold">n.m.</td></tr>
+<tr><td>Taxed operating income / average NOA, annualized</td><td>4.23%</td><td>5.04%</td><td>4.63%</td><td class="negative">-0.75%</td><td>6.97%</td><td>9.74%</td><td>8.31%</td><td>11.00%</td></tr>
+</tbody>
+</table></div><h3 class="intel">Intel</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr><th>Line</th><th>Q3 24</th><th>Q4 24</th><th>Q1 25</th><th>Q2 25</th><th>Q3 25</th><th>Q4 25</th><th>Q1 26</th><th class="latest">Q2 26</th></tr>
+<tr><th>Quarter-end</th><th>2024-09-28</th><th>2024-12-28</th><th>2025-03-29</th><th>2025-06-28</th><th>2025-09-27</th><th>2025-12-27</th><th>2026-03-28</th><th class="latest">2026-06-27</th></tr>
+</thead>
+<tbody>
+<tr class="section"><td colspan="9">Statement lines, $ millions</td></tr>
+<tr><td>Revenue</td><td>13,284</td><td>14,260</td><td>12,667</td><td>12,859</td><td>13,653</td><td>13,674</td><td>13,577</td><td>16,128</td></tr>
+<tr><td>Operating income</td><td class="negative">-9,057</td><td>412</td><td class="negative">-301</td><td class="negative">-3,176</td><td>683</td><td>580</td><td class="negative">-3,136</td><td>1,796</td></tr>
+<tr><td>Net income</td><td class="negative">-16,989</td><td class="negative">-153</td><td class="negative">-887</td><td class="negative">-3,024</td><td>4,270</td><td class="negative">-333</td><td class="negative">-4,281</td><td class="negative">-10,848</td></tr>
+<tr class="section"><td colspan="9">Traditional DuPont, on the quarter</td></tr>
+<tr><td>Net margin</td><td class="negative">-127.89%</td><td class="negative">-1.07%</td><td class="negative">-7.00%</td><td class="negative">-23.52%</td><td>31.28%</td><td class="negative">-2.44%</td><td class="negative">-31.53%</td><td class="negative">-67.26%</td></tr>
+<tr><td>Asset turnover</td><td>0.07x</td><td>0.07x</td><td>0.07x</td><td>0.07x</td><td>0.07x</td><td>0.07x</td><td>0.07x</td><td>0.08x</td></tr>
+<tr><td>Equity multiplier</td><td>1.77x</td><td>1.86x</td><td>1.84x</td><td>1.81x</td><td>1.78x</td><td>1.71x</td><td>1.66x</td><td>1.79x</td></tr>
+<tr><td class="bold">ROE</td><td class="negative bold">-15.08%</td><td class="negative bold">-0.15%</td><td class="negative bold">-0.84%</td><td class="negative bold">-2.85%</td><td class="bold">3.84%</td><td class="negative bold">-0.27%</td><td class="negative bold">-3.41%</td><td class="negative bold">-9.51%</td></tr>
+<tr><td class="bold">Identity: margin x turnover x leverage</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td></tr>
+<tr class="section"><td colspan="9">Modified DuPont, on the quarter</td></tr>
+<tr><td>NOPAT margin</td><td class="negative">-128.44%</td><td class="negative">-1.23%</td><td class="negative">-6.67%</td><td class="negative">-23.41%</td><td>31.59%</td><td class="negative">-2.67%</td><td class="negative">-31.93%</td><td class="negative">-67.33%</td></tr>
+<tr><td>NOA turnover</td><td>0.10x</td><td>0.11x</td><td>0.09x</td><td>0.09x</td><td>0.10x</td><td>0.10x</td><td>0.10x</td><td>0.12x</td></tr>
+<tr><td class="bold">Operating ROA</td><td class="negative bold">-12.40%</td><td class="negative bold">-0.13%</td><td class="negative bold">-0.63%</td><td class="negative bold">-2.22%</td><td class="bold">3.22%</td><td class="negative bold">-0.27%</td><td class="negative bold">-3.18%</td><td class="negative bold">-8.31%</td></tr>
+<tr><td>Net borrowing cost</td><td class="negative">-0.29%</td><td class="negative">-0.08%</td><td>0.15%</td><td>0.05%</td><td>0.19%</td><td class="negative">-0.26%</td><td class="negative">-0.51%</td><td class="negative">-0.06%</td></tr>
+<tr><td>Spread</td><td class="negative">-12.11%</td><td class="negative">-0.05%</td><td class="negative">-0.78%</td><td class="negative">-2.27%</td><td>3.03%</td><td class="negative">-0.01%</td><td class="negative">-2.67%</td><td class="negative">-8.25%</td></tr>
+<tr><td>Net financial leverage</td><td>0.22x</td><td>0.26x</td><td>0.27x</td><td>0.28x</td><td>0.20x</td><td>0.10x</td><td>0.09x</td><td>0.14x</td></tr>
+<tr><td class="bold">Leverage gain</td><td class="negative bold">-2.68%</td><td class="negative bold">-0.01%</td><td class="negative bold">-0.21%</td><td class="negative bold">-0.63%</td><td class="bold">0.62%</td><td class="negative bold">-0.00%</td><td class="negative bold">-0.23%</td><td class="negative bold">-1.20%</td></tr>
+<tr><td class="bold">ROE</td><td class="negative bold">-15.08%</td><td class="negative bold">-0.15%</td><td class="negative bold">-0.84%</td><td class="negative bold">-2.85%</td><td class="bold">3.84%</td><td class="negative bold">-0.27%</td><td class="negative bold">-3.41%</td><td class="negative bold">-9.51%</td></tr>
+<tr><td class="bold">Identity: operating ROA + gain</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td></tr>
+<tr><td>Operating income x 0.79 / average NOA</td><td class="negative">-5.20%</td><td>0.25%</td><td class="negative">-0.18%</td><td class="negative">-1.85%</td><td>0.40%</td><td>0.34%</td><td class="negative">-1.82%</td><td>1.09%</td></tr>
+<tr class="section"><td colspan="9">Annualized, the quarter times four. Margins are not annualized.</td></tr>
+<tr><td class="bold">ROE, annualized</td><td class="negative bold">-60.33%</td><td class="negative bold">-0.58%</td><td class="negative bold">-3.36%</td><td class="negative bold">-11.40%</td><td class="bold">15.35%</td><td class="negative bold">-1.10%</td><td class="negative bold">-13.63%</td><td class="negative bold">-38.04%</td></tr>
+<tr><td>Asset turnover, annualized</td><td>0.27x</td><td>0.29x</td><td>0.26x</td><td>0.27x</td><td>0.28x</td><td>0.26x</td><td>0.26x</td><td>0.32x</td></tr>
+<tr><td class="bold">Operating ROA, annualized</td><td class="negative bold">-49.60%</td><td class="negative bold">-0.53%</td><td class="negative bold">-2.52%</td><td class="negative bold">-8.89%</td><td class="bold">12.89%</td><td class="negative bold">-1.09%</td><td class="negative bold">-12.72%</td><td class="negative bold">-33.26%</td></tr>
+<tr><td>Taxed operating income / average NOA, annualized</td><td class="negative">-20.80%</td><td>0.99%</td><td class="negative">-0.71%</td><td class="negative">-7.41%</td><td>1.61%</td><td>1.37%</td><td class="negative">-7.27%</td><td>4.35%</td></tr>
+</tbody>
+</table></div>
+<h2>Comparison</h2>
+<p>The first block is the latest quarter. The second is the trailing twelve months ending Q2 2026, the same window as the buy-and-sell note's trailing net income. The identity row is net margin times turnover times leverage on those totals.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Line</th><th class="nvidia">NVIDIA</th><th class="amd">AMD</th><th class="intel">Intel</th></tr></thead><tbody>
+<tr class="section"><td colspan="4">Latest quarter</td></tr>
+<tr><td>Quarter</td><td>Q2 26</td><td>Q2 26</td><td>Q2 26</td></tr>
+<tr><td>Quarter-end</td><td>2026-07-26</td><td>2026-06-27</td><td>2026-06-27</td></tr>
+<tr><td>Revenue</td><td>$96.2bn</td><td>$11.5bn</td><td>$16.1bn</td></tr>
+<tr><td>Operating margin</td><td>66.2%</td><td>17.3%</td><td>11.1%</td></tr>
+<tr><td class="bold">ROE, annualized</td><td class="bold">112.5%</td><td class="bold">14.0%</td><td class="negative bold">-38.0%</td></tr>
+<tr><td>Operating ROA, annualized</td><td>161.2%</td><td>n.m.</td><td class="negative">-33.3%</td></tr>
+<tr><td>Taxed operating ROA, annualized</td><td>136.4%</td><td>11.0%</td><td>4.3%</td></tr>
+<tr><td>Balance sheet</td><td>Net cash $61.0bn</td><td>Net cash $8.8bn</td><td>Net debt $20.8bn</td></tr>
+<tr class="section"><td colspan="4">Trailing twelve months, Q3 2025 through Q2 2026</td></tr>
+<tr><td>Revenue</td><td>$303.0bn</td><td>$41.3bn</td><td>$57.0bn</td></tr>
+<tr><td class="bold">Net income</td><td class="bold">$192.9bn</td><td class="bold">$6.4bn</td><td class="negative bold">-$11.2bn</td></tr>
+<tr><td>Operating margin</td><td>65.2%</td><td>15.7%</td><td class="negative">-0.1%</td></tr>
+<tr><td>Net margin</td><td>63.7%</td><td>15.6%</td><td class="negative">-19.6%</td></tr>
+<tr><td class="bold">ROE</td><td class="bold">117.2%</td><td class="bold">10.1%</td><td class="negative bold">-10.7%</td></tr>
+<tr><td>Asset turnover</td><td>1.31x</td><td>0.52x</td><td>0.29x</td></tr>
+<tr><td>Operating ROA</td><td>172.8%</td><td>n.m.</td><td class="negative">-8.7%</td></tr>
+<tr><td>Taxed operating ROA</td><td>140.9%</td><td>8.8%</td><td class="negative">-0.0%</td></tr>
+<tr><td class="bold">Identity</td><td class="bold">YES</td><td class="bold">YES</td><td class="bold">YES</td></tr>
+<tr class="section"><td colspan="4">Trailing ROE by window end</td></tr>
+<tr><td>Q2 25</td><td>109.4%</td><td>4.9%</td><td class="negative">-18.6%</td></tr>
+<tr><td>Q3 25</td><td>107.4%</td><td>5.6%</td><td>0.2%</td></tr>
+<tr><td>Q4 25</td><td>101.5%</td><td>7.2%</td><td>0.0%</td></tr>
+<tr><td>Q1 26</td><td>114.3%</td><td>8.2%</td><td class="negative">-2.9%</td></tr>
+<tr><td>Q2 26</td><td>117.2%</td><td>10.1%</td><td class="negative">-10.7%</td></tr>
+</tbody>
+</table></div>
+<h2>What the quarters say</h2>
 <div class="insight-box">
-  <h4>Key Findings &mdash; 3-Part DuPont</h4>
+  <h4>The run-rate is the trailing year, read next to the latest quarter</h4>
   <ul>
-    <li><strong>NVIDIA's ROE dominance</strong> is driven by extraordinary net profit margins (55%+) combined with improving asset turnover. Its equity multiplier is actually the <em>lowest</em> of the three, meaning leverage is not the source of its returns.</li>
-    <li><strong>AMD's ROE collapsed</strong> from ~42% (FY2020-21) to &lt;3% (FY2022-23) after the Xilinx acquisition inflated total assets while margins compressed. The goodwill-heavy balance sheet depresses both asset turnover (0.33-0.45x) and profit margins.</li>
-    <li><strong>Intel's structural decline</strong> is visible across all three levers: margins collapsed from 29% to negative, asset turnover fell from 0.55x to 0.25x, and even its higher leverage (1.67-1.87x EM) cannot offset the operating deterioration.</li>
+    <li>NVIDIA trailing revenue is $303.0bn and trailing net income is $192.9bn. Trailing ROE is 117.2%. The latest quarter annualizes to 112.5%. Annualized operating ROA is 161.2%. NVIDIA holds net cash of $61.0bn.</li>
+    <li>AMD trailing ROE is 10.1% on revenue of $41.3bn. Latest-quarter annualized turnover is 0.56x. Modified DuPont stays open. Taxed operating income over average net operating assets annualizes to 11.0%.</li>
+    <li>Intel trailing operating margin is -0.1% and trailing ROE is -10.7%, on revenue of $57.0bn. The latest quarter's operating margin is 11.1%, on operating income of $1.8bn and consolidated net income of -$10.8bn. Intel carries net debt of $20.8bn.</li>
+    <li>Against the year-ago quarter, revenue is 105.9% at NVIDIA, 50.1% at AMD, and 25.4% at Intel.</li>
   </ul>
 </div>
-
-<!-- Section 2: 5-Part DuPont -->
-<h2 id="five-part">2. Extended 5-Part DuPont Decomposition</h2>
-<div class="formula">ROE = Tax Burden &times; Interest Burden &times; EBIT Margin &times; Asset Turnover &times; Equity Multiplier<br>= (NI / EBT) &times; (EBT / EBIT) &times; (EBIT / Revenue) &times; (Revenue / TA) &times; (TA / Equity)</div>
-
-<div class="tab-container">
-  <div class="tab-buttons" id="tabs5">
-    <button class="tab-btn active" data-tab="t5-nvidia">NVIDIA</button>
-    <button class="tab-btn" data-tab="t5-amd">AMD</button>
-    <button class="tab-btn" data-tab="t5-intel">Intel</button>
-  </div>
-  <div class="tab-panel active" id="t5-nvidia"></div>
-  <div class="tab-panel" id="t5-amd"></div>
-  <div class="tab-panel" id="t5-intel"></div>
-</div>
-
-<div class="insight-box">
-  <h4>Key Findings &mdash; 5-Part DuPont</h4>
-  <ul>
-    <li><strong>NVIDIA's tax burden</strong> has increased (from ~98% retention to ~85%) as profits grow and tax shields diminish, but this is more than offset by surging EBIT margins (60%+). Interest burden &gt;100% reflects net interest <em>income</em> from its large cash/securities holdings.</li>
-    <li><strong>AMD shows 100% tax burden</strong> across most years (tax expense data unavailable in parsed filings, likely due to net operating loss carryforwards and acquisition-related tax effects). The interest burden volatility (54%-213%) reflects how small non-operating items create large swings when operating income is thin.</li>
-    <li><strong>Intel's interest burden</strong> became extreme in FY2022-23 (344%-1801%) as operating income approached zero but non-operating gains propped up EBT &mdash; a red flag for earnings quality.</li>
-  </ul>
-</div>
-
-<!-- Section 3: Advanced DuPont -->
-<h2 id="advanced">3. Advanced DuPont Decomposition (Palepu-Healy Framework)</h2>
-<div class="formula">ROE = RNOA + (RNOA &minus; NBC) &times; FLEV = RNOA + Spread &times; FLEV</div>
-<p>This framework separates <strong>operating performance</strong> (RNOA) from the <strong>financial leverage effect</strong> (Spread &times; FLEV), using net operating assets and net financial obligations.</p>
-
-<div class="formula" style="font-size: 0.82rem;">
-  NOPAT = Operating Income &times; (1 &minus; tax rate) &nbsp;&nbsp;|&nbsp;&nbsp;
-  NFO = (LTD + STD) &minus; (Cash + Securities) &nbsp;&nbsp;|&nbsp;&nbsp;
-  NOA = Equity + NFO &nbsp;&nbsp;|&nbsp;&nbsp;
-  RNOA = NOPAT / avg(NOA) &nbsp;&nbsp;|&nbsp;&nbsp;
-  NBC = Net Fin Expense(1&minus;t) / avg(NFO) &nbsp;&nbsp;|&nbsp;&nbsp;
-  FLEV = avg(NFO) / avg(Equity) &nbsp;&nbsp;|&nbsp;&nbsp;
-  Spread = RNOA &minus; NBC
-</div>
-
-<div class="tab-container">
-  <div class="tab-buttons" id="tabsAdv">
-    <button class="tab-btn active" data-tab="ta-nvidia">NVIDIA</button>
-    <button class="tab-btn" data-tab="ta-amd">AMD</button>
-    <button class="tab-btn" data-tab="ta-intel">Intel</button>
-  </div>
-  <div class="tab-panel active" id="ta-nvidia"></div>
-  <div class="tab-panel" id="ta-amd"></div>
-  <div class="tab-panel" id="ta-intel"></div>
-</div>
-
-<div class="chart-grid">
-  <div><h3>RNOA (Return on Net Operating Assets)</h3><div class="chart-box"><canvas id="rnoaChart"></canvas></div></div>
-  <div><h3>Financial Spread (RNOA - NBC)</h3><div class="chart-box"><canvas id="spreadChart"></canvas></div></div>
-</div>
-<div class="chart-grid">
-  <div><h3>Financial Leverage (FLEV = NFO / Equity)</h3><div class="chart-box"><canvas id="flevChart"></canvas></div></div>
-</div>
-
-<div class="insight-box">
-  <h4>Key Findings &mdash; Advanced DuPont</h4>
-  <ul>
-    <li><strong>NVIDIA's RNOA</strong> is extraordinary: 149.8% in FY2026 and 168.9% in FY2025, reflecting massive operating returns on a relatively asset-light model. Its net operating assets are small relative to earnings because huge financial assets (cash + securities) reduce NOA.</li>
-    <li><strong>Negative FLEV</strong> for NVIDIA (-0.38 in FY2026) means it is a <em>net creditor</em> &mdash; financial assets exceed financial obligations. With a positive spread, negative leverage actually <em>reduces</em> ROE below RNOA: NVIDIA's ROE (76-102%) is actually lower than its RNOA (150-169%) because of its massive cash pile.</li>
-    <li><strong>AMD also has negative FLEV</strong> (-0.04 to -0.28), consistent with a net cash position. Its RNOA peaked at 66% during the FY2021 growth surge but fell to 0.8% post-Xilinx as goodwill diluted operating asset returns.</li>
-    <li><strong>Intel's RNOA</strong> collapsed from 28% (FY2019) to -9.6% (FY2024) as operating losses mounted against a large and growing asset base. Its recent FLEV turned negative (-0.22 in FY2025) as it raised cash, but negative operating returns mean leverage provides no benefit.</li>
-    <li><strong>The spread is the key differentiator:</strong> NVIDIA's 146% spread means every dollar of net financial obligation (if it had any) would amplify returns massively. Intel's negative spread means its operations cannot even cover borrowing costs.</li>
-  </ul>
-</div>
-
-<!-- Section 4: Comparative -->
-<h2 id="comparative">4. Cross-Company Comparative Summary</h2>
-
-<div class="table-wrap">
-  <table id="compTable">
-    <thead>
-      <tr>
-        <th>Metric</th>
-        <th colspan="3">NVIDIA</th>
-        <th colspan="3">AMD</th>
-        <th colspan="3">Intel</th>
-      </tr>
-      <tr>
-        <th></th>
-        <th>FY2024</th><th>FY2025</th><th>FY2026</th>
-        <th>FY2023</th><th>FY2024</th><th>FY2025</th>
-        <th>FY2023</th><th>FY2024</th><th>FY2025</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-</div>
-
-<div class="insight-box">
-  <h4>Summary &mdash; Competitive Positioning</h4>
-  <ul>
-    <li><strong>NVIDIA</strong> occupies a class of its own among semiconductor peers. Its combination of 55%+ net margins, &gt;1x asset turnover, and conservative leverage produces ROE levels (76-101%) rarely seen outside of software-only businesses. The Advanced DuPont reveals that this is pure operating excellence: RNOA &gt;100%, negative financial leverage (net cash), and returns that are actually <em>suppressed</em> by the cash hoard.</li>
-    <li><strong>AMD</strong> is in a transitional period. The Xilinx acquisition (closed Feb 2022) tripled total assets but operating income has only recently begun recovering. RNOA is 6.8% and improving &mdash; the thesis requires continued revenue scaling against the fixed goodwill base. AMD's negative FLEV (net cash) provides downside protection but limits return amplification.</li>
-    <li><strong>Intel</strong> faces a structural profitability crisis visible across every decomposition layer. Negative operating margins, sub-0.25x asset turnover on a $211B asset base, and losses that turned ROE and RNOA negative. The 5-part decomposition exposes unsustainable interest burden ratios in FY2022-23, where non-operating items masked operating weakness. The foundry turnaround requires sustained capex without near-term return &mdash; a duration mismatch that the DuPont framework highlights clearly.</li>
-  </ul>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
-<script>
-const DATA = {"dupont3":{"NVIDIA":[{"fy":2018,"rev":11716,"ni":4141,"ta":13292,"eq":9342,"npm":35.3,"ato":0.88,"em":1.42,"roe":44.3},{"fy":2019,"rev":11716,"ni":2796,"ta":17315,"eq":12204,"npm":23.9,"ato":0.68,"em":1.42,"roe":22.9},{"fy":2020,"rev":10918,"ni":2796,"ta":17315,"eq":12204,"npm":25.6,"ato":0.63,"em":1.42,"roe":22.9},{"fy":2021,"rev":16675,"ni":4332,"ta":28791,"eq":16893,"npm":26.0,"ato":0.58,"em":1.7,"roe":25.6},{"fy":2022,"rev":26914,"ni":9752,"ta":44187,"eq":26612,"npm":36.2,"ato":0.61,"em":1.66,"roe":36.6},{"fy":2023,"rev":26974,"ni":4368,"ta":41182,"eq":22101,"npm":16.2,"ato":0.65,"em":1.86,"roe":19.8},{"fy":2024,"rev":60922,"ni":29760,"ta":65728,"eq":42978,"npm":48.8,"ato":0.93,"em":1.53,"roe":69.2},{"fy":2025,"rev":130497,"ni":72880,"ta":111601,"eq":79327,"npm":55.8,"ato":1.17,"em":1.41,"roe":91.9},{"fy":2026,"rev":215938,"ni":120067,"ta":206803,"eq":157293,"npm":55.6,"ato":1.04,"em":1.31,"roe":76.3}],"AMD":[{"fy":2018,"rev":6475,"ni":337,"ta":4556,"eq":1266,"npm":5.2,"ato":1.42,"em":3.6,"roe":26.6},{"fy":2019,"rev":6731,"ni":341,"ta":6028,"eq":2827,"npm":5.1,"ato":1.12,"em":2.13,"roe":12.1},{"fy":2020,"rev":9763,"ni":2490,"ta":8962,"eq":5837,"npm":25.5,"ato":1.09,"em":1.54,"roe":42.7},{"fy":2021,"rev":16434,"ni":3162,"ta":12419,"eq":7497,"npm":19.2,"ato":1.32,"em":1.66,"roe":42.2},{"fy":2022,"rev":23601,"ni":1320,"ta":67580,"eq":54750,"npm":5.6,"ato":0.35,"em":1.23,"roe":2.4},{"fy":2023,"rev":22680,"ni":854,"ta":67885,"eq":55892,"npm":3.8,"ato":0.33,"em":1.21,"roe":1.5},{"fy":2024,"rev":25785,"ni":1641,"ta":69226,"eq":57568,"npm":6.4,"ato":0.37,"em":1.2,"roe":2.9},{"fy":2025,"rev":34639,"ni":4335,"ta":76926,"eq":62999,"npm":12.5,"ato":0.45,"em":1.22,"roe":6.9}],"Intel":[{"fy":2018,"rev":70848,"ni":21053,"ta":127963,"eq":74563,"npm":29.7,"ato":0.55,"em":1.72,"roe":28.2},{"fy":2019,"rev":71965,"ni":21048,"ta":136524,"eq":77504,"npm":29.2,"ato":0.53,"em":1.76,"roe":27.2},{"fy":2020,"rev":77867,"ni":20899,"ta":153091,"eq":81038,"npm":26.8,"ato":0.51,"em":1.89,"roe":25.8},{"fy":2021,"rev":79024,"ni":19868,"ta":168406,"eq":95391,"npm":25.1,"ato":0.47,"em":1.77,"roe":20.8},{"fy":2022,"rev":63054,"ni":8017,"ta":182103,"eq":103286,"npm":12.7,"ato":0.35,"em":1.76,"roe":7.8},{"fy":2023,"rev":54228,"ni":1675,"ta":191572,"eq":109965,"npm":3.1,"ato":0.28,"em":1.74,"roe":1.5},{"fy":2024,"rev":53101,"ni":-19233,"ta":196485,"eq":105032,"npm":-36.2,"ato":0.27,"em":1.87,"roe":-18.3},{"fy":2025,"rev":52853,"ni":-267,"ta":211429,"eq":126360,"npm":-0.5,"ato":0.25,"em":1.67,"roe":-0.2}]},"dupont5":{"NVIDIA":[{"fy":2018,"tax_burden":106.3,"int_burden":102.4,"ebit_margin":32.5,"ato":0.88,"em":1.42,"roe":44.3},{"fy":2019,"tax_burden":94.1,"int_burden":104.4,"ebit_margin":24.3,"ato":0.68,"em":1.42,"roe":22.9},{"fy":2020,"tax_burden":94.1,"int_burden":104.4,"ebit_margin":26.1,"ato":0.63,"em":1.42,"roe":22.9},{"fy":2021,"tax_burden":98.3,"int_burden":97.3,"ebit_margin":27.2,"ato":0.58,"em":1.7,"roe":25.6},{"fy":2022,"tax_burden":98.1,"int_burden":99.0,"ebit_margin":37.3,"ato":0.61,"em":1.66,"roe":36.6},{"fy":2023,"tax_burden":104.5,"int_burden":99.0,"ebit_margin":15.7,"ato":0.65,"em":1.86,"roe":19.8},{"fy":2024,"tax_burden":88.0,"int_burden":102.6,"ebit_margin":54.1,"ato":0.93,"em":1.53,"roe":69.2},{"fy":2025,"tax_burden":86.7,"int_burden":103.2,"ebit_margin":62.4,"ato":1.17,"em":1.41,"roe":91.9},{"fy":2026,"tax_burden":84.9,"int_burden":108.5,"ebit_margin":60.4,"ato":1.04,"em":1.31,"roe":76.3}],"AMD":[{"fy":2018,"tax_burden":100.0,"int_burden":74.7,"ebit_margin":7.0,"ato":1.42,"em":3.6,"roe":26.6},{"fy":2019,"tax_burden":100.0,"int_burden":54.0,"ebit_margin":9.4,"ato":1.12,"em":2.13,"roe":12.1},{"fy":2020,"tax_burden":100.0,"int_burden":181.9,"ebit_margin":14.0,"ato":1.09,"em":1.54,"roe":42.7},{"fy":2021,"tax_burden":100.0,"int_burden":86.7,"ebit_margin":22.2,"ato":1.32,"em":1.66,"roe":42.2},{"fy":2022,"tax_burden":100.0,"int_burden":104.4,"ebit_margin":5.4,"ato":0.35,"em":1.23,"roe":2.4},{"fy":2023,"tax_burden":100.0,"int_burden":213.0,"ebit_margin":1.8,"ato":0.33,"em":1.21,"roe":1.5},{"fy":2024,"tax_burden":100.0,"int_burden":86.4,"ebit_margin":7.4,"ato":0.37,"em":1.2,"roe":2.9},{"fy":2025,"tax_burden":100.0,"int_burden":117.4,"ebit_margin":10.7,"ato":0.45,"em":1.22,"roe":6.9}],"Intel":[{"fy":2018,"tax_burden":100.0,"int_burden":90.3,"ebit_margin":32.9,"ato":0.55,"em":1.72,"roe":28.2},{"fy":2019,"tax_burden":100.0,"int_burden":95.5,"ebit_margin":30.6,"ato":0.53,"em":1.76,"roe":27.2},{"fy":2020,"tax_burden":100.0,"int_burden":88.3,"ebit_margin":30.4,"ato":0.51,"em":1.89,"roe":25.8},{"fy":2021,"tax_burden":100.0,"int_burden":102.1,"ebit_margin":24.6,"ato":0.47,"em":1.77,"roe":20.8},{"fy":2022,"tax_burden":100.0,"int_burden":343.5,"ebit_margin":3.7,"ato":0.35,"em":1.76,"roe":7.8},{"fy":2023,"tax_burden":100.0,"int_burden":1801.1,"ebit_margin":0.2,"ato":0.28,"em":1.74,"roe":1.5},{"fy":2024,"tax_burden":100.0,"int_burden":164.7,"ebit_margin":-22.0,"ato":0.27,"em":1.87,"roe":-18.3},{"fy":2025,"tax_burden":100.0,"int_burden":12.1,"ebit_margin":-4.2,"ato":0.25,"em":1.67,"roe":-0.2}]},"adv_dupont":{"NVIDIA":[{"fy":2019,"rnoa":74.4,"nbc":1.7,"spread":72.7,"flev":-0.67,"roe_decomp":26.0,"roe_actual":26.0,"nopat":2679,"avg_noa":3604,"avg_nfo":-7170,"eff_tax":6},{"fy":2020,"rnoa":32.1,"nbc":3.1,"spread":29.0,"flev":-0.32,"roe_decomp":22.9,"roe_actual":22.9,"nopat":2679,"avg_noa":8356,"avg_nfo":-3848,"eff_tax":6},{"fy":2021,"rnoa":33.8,"nbc":-9.2,"spread":42.9,"flev":-0.09,"roe_decomp":29.7,"roe_actual":29.8,"nopat":4453,"avg_noa":13186,"avg_nfo":-1362,"eff_tax":2},{"fy":2022,"rnoa":39.7,"nbc":6.6,"spread":33.1,"flev":0.14,"roe_decomp":44.3,"roe_actual":44.8,"nopat":9850,"avg_noa":24836,"avg_nfo":3083,"eff_tax":2},{"fy":2023,"rnoa":17.3,"nbc":-4.4,"spread":21.6,"flev":0.0,"roe_decomp":17.4,"roe_actual":17.9,"nopat":4224,"avg_noa":24470,"avg_nfo":114,"eff_tax":0},{"fy":2024,"rnoa":113.1,"nbc":7.8,"spread":105.4,"flev":-0.21,"roe_decomp":90.8,"roe_actual":91.5,"nopat":29016,"avg_noa":25647,"avg_nfo":-6892,"eff_tax":12},{"fy":2025,"rnoa":168.9,"nbc":6.9,"spread":162.0,"flev":-0.32,"roe_decomp":117.7,"roe_actual":119.2,"nopat":70648,"avg_noa":41822,"avg_nfo":-19330,"eff_tax":13},{"fy":2026,"rnoa":149.8,"nbc":3.9,"spread":145.9,"flev":-0.38,"roe_decomp":95.0,"roe_actual":101.5,"nopat":110676,"avg_noa":73892,"avg_nfo":-44418,"eff_tax":15}],"AMD":[{"fy":2019,"rnoa":16.2,"nbc":86.8,"spread":-70.6,"flev":0.03,"roe_decomp":14.2,"roe_actual":16.7,"nopat":341,"avg_noa":2105,"avg_nfo":58,"eff_tax":46},{"fy":2020,"rnoa":42.4,"nbc":-4.2,"spread":46.7,"flev":-0.26,"roe_decomp":30.5,"roe_actual":57.5,"nopat":1369,"avg_noa":3226,"avg_nfo":-1106,"eff_tax":0},{"fy":2021,"rnoa":66.3,"nbc":-1.6,"spread":67.9,"flev":-0.28,"roe_decomp":47.0,"roe_actual":47.4,"nopat":3162,"avg_noa":4768,"avg_nfo":-1900,"eff_tax":13},{"fy":2022,"rnoa":4.4,"nbc":-3.6,"spread":8.0,"flev":-0.08,"roe_decomp":3.8,"roe_actual":4.2,"nopat":1264,"avg_noa":28672,"avg_nfo":-2451,"eff_tax":0},{"fy":2023,"rnoa":0.8,"nbc":-4.6,"spread":5.4,"flev":-0.04,"roe_decomp":0.5,"roe_actual":1.5,"nopat":401,"avg_noa":53029,"avg_nfo":-2292,"eff_tax":0},{"fy":2024,"rnoa":3.0,"nbc":-2.8,"spread":5.9,"flev":-0.05,"roe_decomp":2.8,"roe_actual":2.9,"nopat":1641,"avg_noa":53916,"avg_nfo":-2814,"eff_tax":14},{"fy":2025,"rnoa":6.8,"nbc":-2.3,"spread":9.0,"flev":-0.1,"roe_decomp":5.9,"roe_actual":7.2,"nopat":3694,"avg_noa":54476,"avg_nfo":-5808,"eff_tax":0}],"Intel":[{"fy":2019,"rnoa":28.1,"nbc":-0.0,"spread":28.1,"flev":-0.02,"roe_decomp":27.7,"roe_actual":27.7,"nopat":21048,"avg_noa":74876,"avg_nfo":-1157,"eff_tax":4},{"fy":2020,"rnoa":27.0,"nbc":-0.0,"spread":27.0,"flev":-0.02,"roe_decomp":26.4,"roe_actual":26.4,"nopat":20899,"avg_noa":77349,"avg_nfo":-1922,"eff_tax":12},{"fy":2021,"rnoa":22.2,"nbc":-0.0,"spread":22.2,"flev":-0.01,"roe_decomp":22.1,"roe_actual":22.5,"nopat":19456,"avg_noa":87757,"avg_nfo":-458,"eff_tax":0},{"fy":2022,"rnoa":2.3,"nbc":0.0,"spread":2.3,"flev":0.02,"roe_decomp":2.3,"roe_actual":8.1,"nopat":2334,"avg_noa":101593,"avg_nfo":2254,"eff_tax":0},{"fy":2023,"rnoa":0.1,"nbc":0.0,"spread":0.1,"flev":0.03,"roe_decomp":0.1,"roe_actual":1.6,"nopat":93,"avg_noa":109811,"avg_nfo":3186,"eff_tax":0},{"fy":2024,"rnoa":-9.6,"nbc":-0.0,"spread":-9.6,"flev":-0.04,"roe_decomp":-9.2,"roe_actual":-17.9,"nopat":-9926,"avg_noa":103120,"avg_nfo":-4379,"eff_tax":15},{"fy":2025,"rnoa":-2.1,"nbc":-0.0,"spread":-2.1,"flev":-0.22,"roe_decomp":-1.6,"roe_actual":-0.2,"nopat":-1882,"avg_noa":90558,"avg_nfo":-25138,"eff_tax":15}]}};
-
-const COLORS = {
-  NVIDIA: { line: '#22c55e', bg: 'rgba(34,197,94,0.15)' },
-  AMD: { line: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-  Intel: { line: '#3b82f6', bg: 'rgba(59,130,246,0.15)' }
-};
-
-function fmt(v, suffix) {
-  if (v === null || v === undefined) return '—';
-  suffix = suffix || '';
-  if (suffix === '%') return v.toFixed(1) + '%';
-  if (suffix === 'x') return v.toFixed(2) + 'x';
-  if (suffix === '$') return v.toLocaleString();
-  return String(v);
-}
-
-function colorClass(v) {
-  if (v > 0) return 'positive';
-  if (v < 0) return 'negative';
-  return '';
-}
-
-// Build 3-Part tables
-function build3Table(company) {
-  var rows = DATA.dupont3[company];
-  var html = '<div class="table-wrap"><table><thead><tr><th>FY</th><th>Revenue ($M)</th><th>Net Income ($M)</th><th>Total Assets ($M)</th><th>Equity ($M)</th><th>NPM</th><th>ATO</th><th>Eq Mult</th><th>ROE</th></tr></thead><tbody>';
-  rows.forEach(function(r) {
-    html += '<tr><td>' + r.fy + '</td><td>' + fmt(r.rev,'$') + '</td><td class="' + colorClass(r.ni) + '">' + fmt(r.ni,'$') + '</td><td>' + fmt(r.ta,'$') + '</td><td>' + fmt(r.eq,'$') + '</td><td class="' + colorClass(r.npm) + '">' + fmt(r.npm,'%') + '</td><td>' + fmt(r.ato,'x') + '</td><td>' + fmt(r.em,'x') + '</td><td class="' + colorClass(r.roe) + '">' + fmt(r.roe,'%') + '</td></tr>';
-  });
-  html += '</tbody></table></div>';
-  return html;
-}
-
-document.getElementById('t3-nvidia').innerHTML = build3Table('NVIDIA');
-document.getElementById('t3-amd').innerHTML = build3Table('AMD');
-document.getElementById('t3-intel').innerHTML = build3Table('Intel');
-
-// Build 5-Part tables
-function build5Table(company) {
-  var rows = DATA.dupont5[company];
-  var html = '<div class="table-wrap"><table><thead><tr><th>FY</th><th>Tax Burden<br>(NI/EBT)</th><th>Interest Burden<br>(EBT/EBIT)</th><th>EBIT Margin<br>(EBIT/Rev)</th><th>ATO<br>(Rev/TA)</th><th>Eq Mult<br>(TA/Eq)</th><th>ROE</th></tr></thead><tbody>';
-  rows.forEach(function(r) {
-    var ib = r.int_burden > 500 ? '>500%' : fmt(r.int_burden,'%');
-    html += '<tr><td>' + r.fy + '</td><td>' + fmt(r.tax_burden,'%') + '</td><td>' + ib + '</td><td class="' + colorClass(r.ebit_margin) + '">' + fmt(r.ebit_margin,'%') + '</td><td>' + fmt(r.ato,'x') + '</td><td>' + fmt(r.em,'x') + '</td><td class="' + colorClass(r.roe) + '">' + fmt(r.roe,'%') + '</td></tr>';
-  });
-  html += '</tbody></table></div>';
-  return html;
-}
-
-document.getElementById('t5-nvidia').innerHTML = build5Table('NVIDIA');
-document.getElementById('t5-amd').innerHTML = build5Table('AMD');
-document.getElementById('t5-intel').innerHTML = build5Table('Intel');
-
-// Build Advanced DuPont tables
-function buildAdvTable(company) {
-  var rows = DATA.adv_dupont[company];
-  var html = '<div class="table-wrap"><table><thead><tr><th>FY</th><th>RNOA</th><th>NBC</th><th>Spread<br>(RNOA-NBC)</th><th>FLEV<br>(NFO/Eq)</th><th>ROE<br>(decomp)</th><th>ROE<br>(actual)</th><th>NOPAT ($M)</th><th>Avg NOA ($M)</th><th>Avg NFO ($M)</th></tr></thead><tbody>';
-  rows.forEach(function(r) {
-    html += '<tr><td>' + r.fy + '</td><td class="' + colorClass(r.rnoa) + '">' + fmt(r.rnoa,'%') + '</td><td>' + fmt(r.nbc,'%') + '</td><td class="' + colorClass(r.spread) + '">' + fmt(r.spread,'%') + '</td><td>' + r.flev.toFixed(2) + '</td><td class="' + colorClass(r.roe_decomp) + '">' + fmt(r.roe_decomp,'%') + '</td><td class="' + colorClass(r.roe_actual) + '">' + fmt(r.roe_actual,'%') + '</td><td class="' + colorClass(r.nopat) + '">' + fmt(r.nopat,'$') + '</td><td>' + fmt(r.avg_noa,'$') + '</td><td>' + fmt(r.avg_nfo,'$') + '</td></tr>';
-  });
-  html += '</tbody></table></div>';
-  return html;
-}
-
-document.getElementById('ta-nvidia').innerHTML = buildAdvTable('NVIDIA');
-document.getElementById('ta-amd').innerHTML = buildAdvTable('AMD');
-document.getElementById('ta-intel').innerHTML = buildAdvTable('Intel');
-
-// Tab switching
-document.querySelectorAll('.tab-buttons').forEach(function(container) {
-  container.querySelectorAll('.tab-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var tabId = btn.getAttribute('data-tab');
-      container.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      var parent = container.parentElement;
-      parent.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
-      document.getElementById(tabId).classList.add('active');
-    });
-  });
-});
-
-// Comparative table
-var compMetrics = [
-  { label: 'ROE', key: 'roe', suffix: '%' },
-  { label: 'Net Profit Margin', key: 'npm', suffix: '%' },
-  { label: 'Asset Turnover', key: 'ato', suffix: 'x' },
-  { label: 'Equity Multiplier', key: 'em', suffix: 'x' },
-  { label: 'Operating Margin', key: 'ebit_margin', suffix: '%', src: 'dupont5' },
-];
-var compYears = { NVIDIA: [2024,2025,2026], AMD: [2023,2024,2025], Intel: [2023,2024,2025] };
-var tbody = document.querySelector('#compTable tbody');
-compMetrics.forEach(function(m) {
-  var tr = document.createElement('tr');
-  tr.innerHTML = '<td><strong>' + m.label + '</strong></td>';
-  ['NVIDIA','AMD','Intel'].forEach(function(co) {
-    compYears[co].forEach(function(yr) {
-      var src = m.src || 'dupont3';
-      var row = DATA[src][co].find(function(r) { return r.fy === yr; });
-      var val = row ? row[m.key] : null;
-      var cls = val !== null ? colorClass(val) : '';
-      tr.innerHTML += '<td class="' + cls + '">' + (val !== null ? fmt(val, m.suffix) : '—') + '</td>';
-    });
-  });
-  tbody.appendChild(tr);
-});
-// Add RNOA and Spread from advanced dupont
-[{label:'RNOA',key:'rnoa'},{label:'Spread (RNOA-NBC)',key:'spread'},{label:'FLEV',key:'flev',suffix:'x'}].forEach(function(m) {
-  var tr = document.createElement('tr');
-  tr.innerHTML = '<td><strong>' + m.label + '</strong></td>';
-  ['NVIDIA','AMD','Intel'].forEach(function(co) {
-    compYears[co].forEach(function(yr) {
-      var row = DATA.adv_dupont[co].find(function(r) { return r.fy === yr; });
-      var val = row ? row[m.key] : null;
-      var suf = m.suffix || '%';
-      var cls = val !== null ? colorClass(val) : '';
-      tr.innerHTML += '<td class="' + cls + '">' + (val !== null ? fmt(val, suf) : '—') + '</td>';
-    });
-  });
-  tbody.appendChild(tr);
-});
-
-// Charts
-function makeLineChart(canvasId, field, label, suffix, dataSource) {
-  dataSource = dataSource || 'dupont3';
-  var allYears = [];
-  ['NVIDIA','AMD','Intel'].forEach(function(co) {
-    DATA[dataSource][co].forEach(function(r) {
-      if (allYears.indexOf(r.fy) === -1) allYears.push(r.fy);
-    });
-  });
-  allYears.sort();
-  var datasets = ['NVIDIA','AMD','Intel'].map(function(co) {
-    return {
-      label: co,
-      data: allYears.map(function(yr) {
-        var row = DATA[dataSource][co].find(function(r) { return r.fy === yr; });
-        return row ? row[field] : null;
-      }),
-      borderColor: COLORS[co].line,
-      backgroundColor: COLORS[co].bg,
-      borderWidth: 2.5,
-      pointRadius: 3,
-      tension: 0.3,
-      spanGaps: true
-    };
-  });
-  new Chart(document.getElementById(canvasId), {
-    type: 'line',
-    data: { labels: allYears.map(function(y) { return 'FY' + y; }), datasets: datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'top' } },
-      scales: {
-        y: {
-          ticks: { callback: function(v) { return v + (suffix || ''); } },
-          grid: { color: 'rgba(128,128,128,0.15)' }
-        },
-        x: { grid: { display: false } }
-      }
-    }
-  });
-}
-
-makeLineChart('roeChart', 'roe', 'ROE', '%', 'dupont3');
-makeLineChart('npmChart', 'npm', 'NPM', '%', 'dupont3');
-makeLineChart('atoChart', 'ato', 'ATO', 'x', 'dupont3');
-makeLineChart('emChart', 'em', 'EM', 'x', 'dupont3');
-makeLineChart('rnoaChart', 'rnoa', 'RNOA', '%', 'adv_dupont');
-makeLineChart('spreadChart', 'spread', 'Spread', '%', 'adv_dupont');
-makeLineChart('flevChart', 'flev', 'FLEV', 'x', 'adv_dupont');
-</script>
+<h2>Sources</h2>
+<p>Lines are SEC companyfacts, USD millions, from the Form 10-Q and Form 10-K quarters. A tagged quarter is kept. The fourth quarter is the rounded fiscal year minus the three rounded quarters, so four quarters add to the 10-K. The plug is within $2 million of the unrounded residual. NVIDIA liquid investments are marketable securities through October 2025, and current debt securities plus equity securities at fair value from January 25, 2026. Intel face cash was not tagged on June 29, 2024, September 28, 2024, and March 29, 2025, so those three balances are cash plus restricted cash.</p>
+<p>The forecast that uses these ratios is <a href="forecast-valuation.html">forecast-valuation.html</a>. The PDF and the Excel identities are written by <code>build_report.py</code>.</p>
+<p class="subtitle">Analysis for study purposes, not investment advice.</p>
 
 </body>
 </html>

@@ -56,13 +56,18 @@
 
 ## Accounting and performance report
 
-`build_report.py` writes the Deliverable #3 draft, `reports/Alam_NVIDIA_Accounting_Performance.pdf`.
+`build_report.py` writes `reports/Alam_NVIDIA_Accounting_Performance.pdf` and the Excel backup `reports/NVIDIA_vs_AMD_Intel_DuPont_backup.xlsx`.
 
-The report compares NVIDIA, AMD, and Intel on average balances. NVIDIA's fiscal year ends in late January, so NVIDIA FY t is the neighbor of AMD and Intel FY t−1. Traditional DuPont is net margin times sales over average assets times average assets over average equity. Modified DuPont follows the course slide: NOPAT is net income plus after-tax net interest at the 21% statutory rate, and net debt is debt plus the long-term operating-lease line, minus cash and liquid investments. The Excel backup, `reports/NVIDIA_vs_AMD_Intel_DuPont_backup.xlsx`, computes the ratios and tests each identity.
+DuPont ratios, the peer comparison, and the residual-income forecast are quarterly. The ratio window is Q3 2024 through Q2 2026. Q2 2024 is kept only as the opening balance for averages. NVIDIA's quarter ends about four weeks after AMD and Intel, so the comparison pairs quarters by calendar slot. The Form 10-K discussion in the PDF is the strategic snapshot. NVIDIA FY t still sits next to AMD and Intel FY t−1 in that snapshot, because those are the 10-Ks.
+
+Traditional DuPont is net margin times sales over average assets times average assets over average equity, on the quarter. Annualized rows are that quarter times four. Trailing twelve months is the sum of four quarters over the average of the opening and closing balance. Modified DuPont follows the course slide: NOPAT is net income plus after-tax net interest at the 21% statutory rate, and net debt is debt plus the long-term operating-lease line, minus cash and liquid investments. AMD's quarterly interest income is not disclosed, so modified DuPont is left blank for AMD. The Excel sheet computes the ratios and tests each identity. Averages are written as `(((opening)+(closing))/2)`.
+
+`quarterly_statements.py` holds the quarter lines. `quarterly_model.py` computes the ratios, the trailing comparison, and the twenty-quarter forecast. `write_quarterly_pages.py` writes `dupont-analysis.html` and `forecast-valuation.html` from that model. `buy-sell-report.html` and `quick-pricing-formulas.html` still show the older annual model, and their notes say so.
 
 ```powershell
 uv sync
 uv run python build_report.py
+uv run python write_quarterly_pages.py
 ```
 
 The PDF is written to `reports/Alam_NVIDIA_Accounting_Performance.pdf`. Chart images are written to `reports/charts/` and are not source files.

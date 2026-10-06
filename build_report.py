@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """NVIDIA vs AMD vs Intel, in the form of the Micron / SK hynix study.
 
-Course-slide DuPont on average balances. Figures are the 10-K statement lines
-tied in the source notes at the bottom of the PDF and in the Excel backup.
+Course-slide DuPont on average balances. The ratio window, the comparison, and
+the forecast are quarterly. The 10-K lines still feed the strategy sections.
 """
 
 from pathlib import Path
@@ -34,6 +34,15 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+from quarterly_model import (
+    FORECASTS,
+    RATIOS as QRATIOS,
+    forecast as quarterly_forecast,
+    latest_ttm,
+    ttm_at,
+    year_totals,
+)
+from quarterly_statements import QUARTERS, SHARES, SLOTS
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "reports" / "Alam_NVIDIA_Accounting_Performance.pdf"
@@ -204,34 +213,57 @@ def row_of(name, year):
     return RATIOS[name][yrs.index(year) - 1]
 
 
+def qlatest(name):
+    return QRATIOS[name][-1]
+
+
+def qratio(name, slot):
+    return QRATIOS[name][SLOTS.index(slot)]
+
+
+def qline(name, slot):
+    """Statement lines for a ratio quarter. Q2 24 is the opening balance and is not a slot."""
+    return QUARTERS[name][SLOTS.index(slot) + 1]
+
+
+def nd_phrase(nd):
+    if nd < 0:
+        return f"Net cash {bn(abs(nd))}"
+    return f"Net debt {bn(nd)}"
+
+
 # ---------------------------------------------------------------------------
 # Excel backup. Ratio cells are formulas off the source block.
 
 def write_excel():
+    """Quarterly sources, formula DuPont, trailing comparison, and residual-income forecast."""
+    colname = xlsxwriter.utility.xl_col_to_name
     wb = xlsxwriter.Workbook(str(XLSX))
     src = wb.add_worksheet("Sources")
     dup = wb.add_worksheet("DuPont")
+    comp = wb.add_worksheet("Comparability")
+    cast = wb.add_worksheet("Forecast")
     title = wb.add_format({"bold": True, "font_size": 16, "font_color": "#1B2A4A", "font_name": "Calibri"})
     head = wb.add_format({"bold": True, "font_color": "white", "bg_color": "#1B2A4A", "font_name": "Calibri", "align": "center", "valign": "vcenter", "text_wrap": True})
+    head_base = wb.add_format({"bold": True, "font_color": "#1C2430", "bg_color": "#EEF1F4", "font_name": "Calibri", "align": "center", "valign": "vcenter", "text_wrap": True})
     label = wb.add_format({"font_name": "Calibri", "align": "left"})
     label_b = wb.add_format({"font_name": "Calibri", "bold": True})
     num = wb.add_format({"font_name": "Calibri", "num_format": "#,##0;(#,##0)"})
     num_b = wb.add_format({"font_name": "Calibri", "num_format": "#,##0;(#,##0)", "bold": True})
     base = wb.add_format({"font_name": "Calibri", "num_format": "#,##0;(#,##0)", "bg_color": "#EEF1F4"})
-    note = wb.add_format({"font_name": "Calibri", "italic": True, "font_color": "#5C6773", "text_wrap": True})
+    note = wb.add_format({"font_name": "Calibri", "italic": True, "font_color": "#5C6773", "text_wrap": True, "valign": "top"})
     pct_f = wb.add_format({"font_name": "Calibri", "num_format": "0.00%"})
     pct_b = wb.add_format({"font_name": "Calibri", "num_format": "0.00%", "bold": True})
-    pct_base = wb.add_format({"font_name": "Calibri", "num_format": "0.00%", "bg_color": "#EEF1F4"})
     x_f = wb.add_format({"font_name": "Calibri", "num_format": "0.00"})
-    x_base = wb.add_format({"font_name": "Calibri", "num_format": "0.00", "bg_color": "#EEF1F4"})
     yes_f = wb.add_format({"font_name": "Calibri", "bold": True, "font_color": "#8C2F39", "align": "center"})
     yes_base = wb.add_format({"font_name": "Calibri", "bold": True, "font_color": "#8C2F39", "align": "center", "bg_color": "#EEF1F4"})
+    px = wb.add_format({"font_name": "Calibri", "num_format": "0.00", "bold": True})
     co_fmt = {
         "NVIDIA": wb.add_format({"bold": True, "font_color": "white", "bg_color": "#0F6B5C", "align": "center", "font_name": "Calibri"}),
         "AMD": wb.add_format({"bold": True, "font_color": "white", "bg_color": "#D4652F", "align": "center", "font_name": "Calibri"}),
         "Intel": wb.add_format({"bold": True, "font_color": "white", "bg_color": "#1F4E79", "align": "center", "font_name": "Calibri"}),
     }
-
+    labels_q = ["Q2 24 base"] + list(SLOTS)
     lines = [
         ("rev", "Revenue"),
         ("oi", "Operating income"),
@@ -247,30 +279,32 @@ def write_excel():
         ("ocf", "Operating cash flow"),
         ("capex", "Capital expenditures, cash spent"),
     ]
-    src.write(0, 0, "Source figures, USD millions", title)
-    src.write(1, 0, "Tied to the 10-K statement lines named in the PDF sources. Base years are shaded. Net debt and the ratios are formulas.", note)
-    src.set_column(0, 0, 52)
+    src.write(0, 0, "Quarterly source figures, USD millions", title)
+    src.write(1, 0, "Shaded columns are the Q2 2024 opening balance and are not ratio quarters. Net debt and NOPAT are formulas. AMD interest income is blank, not zero. The fourth quarter is the rounded fiscal year minus the three rounded quarters.", note)
+    src.set_column(0, 0, 62)
     src.set_row(1, 32)
-    # Map (company, year) -> column on the source sheet. Row of each line is fixed.
     col_of = {}
     col = 1
     header_row = 3
     src.write(header_row, 0, "Line", head)
     for name in ORDER:
-        for i, year in enumerate(WINDOWS[name]):
-            col_of[(name, year)] = col
-            fmt = base if i == 0 else num
-            src.write(header_row, col, f"{name} FY{year % 100:02d}", co_fmt[name] if i else head)
-            src.set_column(col, col, 16, fmt)
+        for i, lab in enumerate(labels_q):
+            col_of[(name, i)] = col
+            src.write(header_row, col, f"{name} {lab}", head_base if i == 0 else co_fmt[name])
+            src.set_column(col, col, 14)
             col += 1
+    src.set_row(header_row, 32)
     for r, (key, caption) in enumerate(lines, start=header_row + 1):
         src.write(r, 0, caption, label_b if key in ("rev", "ni", "ta", "eq") else label)
         for name in ORDER:
-            for i, year in enumerate(WINDOWS[name]):
-                c = col_of[(name, year)]
-                value = BOOKS[name][year][key]
-                src.write_number(r, c, value, base if i == 0 else (num_b if key in ("rev", "ni") else num))
-    # Formula rows
+            for i in range(9):
+                c = col_of[(name, i)]
+                value = QUARTERS[name][i][key]
+                fmt = base if i == 0 else (num_b if key in ("rev", "ni") else num)
+                if value is None:
+                    src.write_blank(r, c, None, fmt)
+                else:
+                    src.write_number(r, c, value, fmt)
     r_nd = header_row + 1 + len(lines)
     r_nfe = r_nd + 1
     r_nopat = r_nd + 2
@@ -279,50 +313,41 @@ def write_excel():
     src.write(r_nopat, 0, "NOPAT = net income + after-tax net interest", label_b)
     key_row = {key: header_row + 1 + i for i, (key, _) in enumerate(lines)}
     for name in ORDER:
-        for i, year in enumerate(WINDOWS[name]):
-            c = col_of[(name, year)]
-            cl = xlsxwriter.utility.xl_col_to_name(c)
+        for i in range(9):
+            c = col_of[(name, i)]
+            cl = colname(c)
 
             def ref(key, _cl=cl):
                 return f"{_cl}{key_row[key] + 1}"
 
-            shade = base if i == 0 else num
-            src.write_formula(r_nd, c, f"={ref('debt')}+{ref('lease')}-{ref('cash')}-{ref('liq')}", shade)
-            src.write_formula(r_nfe, c, f"=({ref('ix')}-{ref('ii')})*(1-0.21)", shade)
-            src.write_formula(r_nopat, c, f"={ref('ni')}+{cl}{r_nfe + 1}", num_b if i else base)
+            fmt = base if i == 0 else num
+            src.write_formula(r_nd, c, f"={ref('debt')}+{ref('lease')}-{ref('cash')}-{ref('liq')}", fmt)
+            src.write_formula(r_nfe, c, f'=IF(COUNTA({ref("ii")})=0,"",({ref("ix")}-{ref("ii")})*(1-0.21))', fmt)
+            src.write_formula(r_nopat, c, f'=IF(COUNTA({ref("ii")})=0,"",{ref("ni")}+{cl}{r_nfe + 1})', base if i == 0 else num_b)
+    src.write(r_nopat + 2, 0, "Pulled from SEC companyfacts for the Form 10-Q and Form 10-K quarters. A tagged quarter is kept. The fourth quarter equals the rounded fiscal year minus the three rounded quarters, and the plug is within $2 million of the unrounded residual, so four quarters add to the 10-K. AMD interest income is annual-only in the taxonomy, so the cell is blank and COUNTA keeps it from becoming zero. Intel net income is consolidated profit, and Intel equity includes non-controlling interests. Intel cash on 2024-06-29, 2024-09-28, and 2025-03-29 is cash plus restricted cash, because face cash was not tagged. NVIDIA liquid investments from 2026-01-25 are current debt securities plus equity securities at fair value. NVIDIA capex is purchases of property, equipment, and intangibles. AMD and Intel capex are purchases of property and equipment. The annual AMD figure includes $38 million of discontinued capex that is not in these quarters.", note)
+    src.set_row(r_nopat + 2, 72)
 
-    src.write(r_nopat + 2, 0, "Intel FY2020 and FY2021 operating cash flow is the revised comparative in the later cash-flow statement (originally $35,384 and $29,991). Intel FY2020 trading assets of $15,738 are not in liquid investments. AMD FY2025 capex of $1,012 and operating cash flow of $7,709 include discontinued operations ($38 and $1,216). Intel capex is the investing-section additions, not the further additions classified in financing ($3,026 in 2025 and $1,178 in 2024). Current operating lease liabilities are inside accrued liabilities and are not in net debt.", note)
-    src.set_row(r_nopat + 2, 48)
-
-    # DuPont sheet
-    dup.write(0, 0, "NVIDIA vs AMD vs Intel: advanced DuPont", title)
-    dup.write(1, 0, "Every ratio is a formula. YES tests the unrounded identity. Shaded columns are the base year and are not ratio years. n.m. is not used; average net debt is never near zero in this panel.", note)
+    dup.write(0, 0, "Quarterly advanced DuPont", title)
+    dup.write(1, 0, "Every ratio is a formula on the quarter. YES tests the unrounded quarterly identity. Annualized rows are the quarter times four. Shaded columns are the opening balance. AMD modified DuPont is n.m. because interest income is blank.", note)
     dup.set_row(1, 32)
-    dup.set_column(0, 0, 62)
+    dup.set_column(0, 0, 68)
     dup.freeze_panes(4, 1)
-
-    # Column layout mirrors the source columns so formulas can point across.
     dup.write(3, 0, "RATIOS", head)
     for name in ORDER:
-        years = WINDOWS[name]
-        c0 = col_of[(name, years[0])]
-        c1 = col_of[(name, years[-1])]
+        c0 = col_of[(name, 0)]
+        c1 = col_of[(name, 8)]
         dup.merge_range(2, c0, 2, c1, name, co_fmt[name])
-        for year in years:
-            c = col_of[(name, year)]
-            dup.write(3, c, f"FY{year % 100:02d}", head)
-            dup.set_column(c, c, 12)
+        for i, lab in enumerate(labels_q):
+            c = col_of[(name, i)]
+            dup.write(3, c, lab, head_base if i == 0 else head)
+            dup.set_column(c, c, 14)
 
-    def src_ref(name, year, key):
-        c = xlsxwriter.utility.xl_col_to_name(col_of[(name, year)])
-        return f"Sources!{c}{key_row[key] + 1}"
+    def src_ref(name, idx, key):
+        return f"Sources!{colname(col_of[(name, idx)])}{key_row[key] + 1}"
 
-    def src_extra(name, year, row):
-        c = xlsxwriter.utility.xl_col_to_name(col_of[(name, year)])
-        return f"Sources!{c}{row + 1}"
+    def src_extra(name, idx, row):
+        return f"Sources!{colname(col_of[(name, idx)])}{row + 1}"
 
-    # Ratio rows. Base column stays blank (shaded) except we still shade it.
-    # For a ratio year, beginning balances are the prior column on this sheet's source.
     ratio_labels = [
         (5, "Traditional DuPont", None),
         (6, "Net margin", "npm"),
@@ -336,76 +361,249 @@ def write_excel():
         (15, "Operating ROA", "rnoa"),
         (16, "Check: operating ROA = NOPAT margin x NOA turn", "chk2"),
         (18, "Operating ROA", "rnoa2"),
-        (19, "− Net interest cost (after-tax interest / avg net debt)", "nbc"),
+        (19, "- Net interest cost (after-tax interest / avg net debt)", "nbc"),
         (20, "Spread", "spread"),
         (21, "x Net financial leverage (avg net debt / avg equity)", "flev"),
         (22, "Gain or loss on financial leverage", "gain"),
         (23, "ROE (NI / avg equity)", "roe2"),
         (24, "Check: ROE = operating ROA + gain", "chk3"),
         (26, "Operating ROA if NOPAT = operating income x 0.79", "alt"),
+        (28, "Annualized, quarter x 4. Margins are not annualized.", None),
+        (29, "ROE, annualized", "roe_ann"),
+        (30, "Asset turnover, annualized", "ato_ann"),
+        (31, "Operating ROA, annualized", "rnoa_ann"),
+        (32, "Operating ROA on taxed operating income, annualized", "alt_ann"),
     ]
-    for r, text, _key in ratio_labels:
-        style = label_b if _key in (None, "roe", "rnoa", "gain", "roe2", "chk1", "chk2", "chk3") else label
+    for r, text, key in ratio_labels:
+        style = label_b if key in (None, "roe", "rnoa", "gain", "roe2", "chk1", "chk2", "chk3", "roe_ann", "rnoa_ann") else label
         dup.write(r, 0, text, style)
 
     for name in ORDER:
-        years = WINDOWS[name]
-        for i, year in enumerate(years):
-            c = col_of[(name, year)]
-            is_base = i == 0
-            if is_base:
+        for i in range(9):
+            c = col_of[(name, i)]
+            if i == 0:
                 for r, _text, key in ratio_labels:
                     if key is None:
                         continue
                     dup.write_blank(r, c, None, base)
                 continue
-            prev = years[i - 1]
-
-            def pair(key, _year=year, _prev=prev):
-                return src_ref(name, _prev, key), src_ref(name, _year, key)
-
-            ta0, ta1 = pair("ta")
-            eq0, eq1 = pair("eq")
-            rev = src_ref(name, year, "rev")
-            ni = src_ref(name, year, "ni")
-            oi = src_ref(name, year, "oi")
-            nd0 = src_extra(name, prev, r_nd)
-            nd1 = src_extra(name, year, r_nd)
-            nopat = src_extra(name, year, r_nopat)
-            nfe = src_extra(name, year, r_nfe)
-            # Outer parentheses stop Excel from reading "a/b/2" as (a/b)/2.
+            prev = i - 1
+            ta0, ta1 = src_ref(name, prev, "ta"), src_ref(name, i, "ta")
+            eq0, eq1 = src_ref(name, prev, "eq"), src_ref(name, i, "eq")
+            rev = src_ref(name, i, "rev")
+            ni = src_ref(name, i, "ni")
+            oi = src_ref(name, i, "oi")
+            nd0, nd1 = src_extra(name, prev, r_nd), src_extra(name, i, r_nd)
+            nopat = src_extra(name, i, r_nopat)
+            nfe = src_extra(name, i, r_nfe)
             avg_ta = f"((({ta0})+({ta1}))/2)"
             avg_eq = f"((({eq0})+({eq1}))/2)"
             avg_nd = f"((({nd0})+({nd1}))/2)"
             avg_noa = f"({avg_eq}+{avg_nd})"
-            # Row numbers on this sheet are 0-based in write(); Excel rows are +1.
-            # Formulas refer to this sheet's own ratio cells where a check needs them.
-            cl = xlsxwriter.utility.xl_col_to_name(c)
+            cl = colname(c)
+            missing = f'{nopat}=""'
             dup.write_formula(6, c, f"={ni}/{rev}", pct_f)
             dup.write_formula(7, c, f"={rev}/{avg_ta}", x_f)
             dup.write_formula(8, c, f"={avg_ta}/{avg_eq}", x_f)
             dup.write_formula(9, c, f"={ni}/{avg_eq}", pct_b)
             dup.write_formula(10, c, f'=IF(ABS({cl}7*{cl}8*{cl}9-{cl}10)<0.0000005,"YES","NO")', yes_f)
-            dup.write_formula(13, c, f"={nopat}/{rev}", pct_f)
-            dup.write_formula(14, c, f"={rev}/{avg_noa}", x_f)
-            dup.write_formula(15, c, f"={cl}14*{cl}15", pct_b)
-            dup.write_formula(16, c, f'=IF(ABS({cl}14*{cl}15-{cl}16)<0.0000005,"YES","NO")', yes_f)
-            dup.write_formula(18, c, f"={cl}16", pct_f)
-            dup.write_formula(19, c, f'=IF(ABS({avg_nd})<250,"n.m.",{nfe}/({avg_nd}))', pct_f)
-            dup.write_formula(20, c, f'=IF({cl}20="n.m.","n.m.",{cl}19-{cl}20)', pct_f)
-            dup.write_formula(21, c, f"={avg_nd}/{avg_eq}", x_f)
-            dup.write_formula(22, c, f'=IF({cl}21="n.m.","n.m.",{cl}21*{cl}22)', pct_b)
+            dup.write_formula(13, c, f'=IF({missing},"n.m.",{nopat}/{rev})', pct_f)
+            dup.write_formula(14, c, f'=IF({missing},"n.m.",{rev}/{avg_noa})', x_f)
+            dup.write_formula(15, c, f'=IF({missing},"n.m.",{nopat}/{avg_noa})', pct_b)
+            dup.write_formula(16, c, f'=IF({missing},"n.m.",IF(ABS({cl}14*{cl}15-{cl}16)<0.0000005,"YES","NO"))', yes_f)
+            dup.write_formula(18, c, f'=IF({missing},"n.m.",{cl}16)', pct_f)
+            dup.write_formula(19, c, f'=IF(OR({missing},ABS({avg_nd})<250),"n.m.",{nfe}/({avg_nd}))', pct_f)
+            dup.write_formula(20, c, f'=IF(OR({missing},{cl}20="n.m."),"n.m.",{cl}19-{cl}20)', pct_f)
+            dup.write_formula(21, c, f'=IF({missing},"n.m.",{avg_nd}/{avg_eq})', x_f)
+            dup.write_formula(22, c, f'=IF(OR({missing},{cl}21="n.m."),"n.m.",{cl}21*{cl}22)', pct_b)
             dup.write_formula(23, c, f"={ni}/{avg_eq}", pct_b)
-            dup.write_formula(24, c, f'=IF({cl}23="n.m.","n.m.",IF(ABS({cl}19+{cl}23-{cl}24)<0.0000005,"YES","NO"))', yes_f)
+            dup.write_formula(24, c, f'=IF(OR({missing},{cl}23="n.m."),"n.m.",IF(ABS({cl}19+{cl}23-{cl}24)<0.0000005,"YES","NO"))', yes_f)
             dup.write_formula(26, c, f"=({oi})*(1-0.21)/({avg_noa})", pct_f)
+            dup.write_formula(29, c, f"={cl}10*4", pct_b)
+            dup.write_formula(30, c, f"={cl}8*4", x_f)
+            dup.write_formula(31, c, f'=IF({cl}16="n.m.","n.m.",{cl}16*4)', pct_b)
+            dup.write_formula(32, c, f"={cl}27*4", pct_f)
+    dup.write(34, 0, "Averages are wrapped as (((opening)+(closing))/2) so Excel does not read a/b/2 as (a/b)/2. NOPAT uses the statutory 21% rate on net interest only. The taxed-operating-income row is filled in for every company, including AMD. Negative net financial leverage means net cash. Annualized turnover and ROE are the quarterly figures times four. Margins are not annualized. The trailing-twelve-month comparison is on the next sheet.", note)
+    dup.set_row(34, 48)
 
-    dup.write(28, 0, "NOPAT uses the statutory 21% federal rate on net interest only. Other income, gains, and the effective tax on operations stay inside net income, and therefore inside NOPAT. The last row taxes operating income at 21% and divides by the same average net operating assets, so the gap is the non-operating items and the tax-rate difference. Equity is the balance-sheet total. Intel's total includes non-controlling interests. Net income is consolidated net income, which for Intel is not the attributable-to-Intel line. Negative net financial leverage means net cash.", note)
-    dup.set_row(28, 48)
+    comp.write(0, 0, "Trailing twelve months, common calendar slot", title)
+    comp.write(1, 0, "Flows are the four quarters ending Q2 2026. The opening balance is Q2 2025, the quarter before that window. NVIDIA's period ends about four weeks after AMD and Intel. YES tests net margin x turnover x leverage on those totals.", note)
+    comp.set_row(1, 32)
+    comp.set_column(0, 0, 62)
+    comp.set_column(1, 3, 18)
+    comp.write(3, 0, "Line", head)
+    for i, name in enumerate(ORDER):
+        comp.write(3, 1 + i, name, co_fmt[name])
+
+    def sum_of(name, key, indexes):
+        refs = ",".join(src_ref(name, i, key) for i in indexes)
+        return f"SUM({refs})"
+
+    def window_formula(name, end_i, kind):
+        flows = [end_i - 3, end_i - 2, end_i - 1, end_i]
+        open_i = end_i - 4
+        rev = sum_of(name, "rev", flows)
+        oi = sum_of(name, "oi", flows)
+        ni = sum_of(name, "ni", flows)
+        ix = sum_of(name, "ix", flows)
+        ii = sum_of(name, "ii", flows)
+        eq0, eq1 = src_ref(name, open_i, "eq"), src_ref(name, end_i, "eq")
+        ta0, ta1 = src_ref(name, open_i, "ta"), src_ref(name, end_i, "ta")
+        nd0, nd1 = src_extra(name, open_i, r_nd), src_extra(name, end_i, r_nd)
+        avg_eq = f"((({eq0})+({eq1}))/2)"
+        avg_ta = f"((({ta0})+({ta1}))/2)"
+        avg_nd = f"((({nd0})+({nd1}))/2)"
+        avg_noa = f"({avg_eq}+{avg_nd})"
+        ii_refs = ",".join(src_ref(name, i, "ii") for i in flows)
+        if kind == "rev":
+            return f"={rev}"
+        if kind == "oi":
+            return f"={oi}"
+        if kind == "ni":
+            return f"={ni}"
+        if kind == "opm":
+            return f"={oi}/{rev}"
+        if kind == "npm":
+            return f"={ni}/{rev}"
+        if kind == "roe":
+            return f"={ni}/{avg_eq}"
+        if kind == "ato":
+            return f"={rev}/{avg_ta}"
+        if kind == "em":
+            return f"={avg_ta}/{avg_eq}"
+        if kind == "alt":
+            return f"={oi}*(1-0.21)/{avg_noa}"
+        if kind == "nd":
+            return f"={nd1}"
+        if kind == "rnoa":
+            return f'=IF(COUNTA({ii_refs})<4,"n.m.",({ni}+({ix}-{ii})*(1-0.21))/{avg_noa})'
+        raise KeyError(kind)
+
+    latest_rows = [
+        (4, "TTM revenue", "rev", num_b),
+        (5, "TTM operating income", "oi", num),
+        (6, "TTM net income", "ni", num_b),
+        (7, "TTM operating margin", "opm", pct_b),
+        (8, "TTM net margin", "npm", pct_f),
+        (9, "TTM ROE", "roe", pct_b),
+        (10, "TTM asset turnover", "ato", x_f),
+        (11, "TTM leverage", "em", x_f),
+        (13, "TTM operating ROA", "rnoa", pct_b),
+        (14, "TTM operating ROA on taxed operating income", "alt", pct_f),
+        (15, "Net debt (net cash) at Q2 2026", "nd", num),
+    ]
+    for r, caption, kind, fmt in latest_rows:
+        comp.write(r, 0, caption, label_b if kind in ("rev", "roe", "rnoa") else label)
+        for i, name in enumerate(ORDER):
+            comp.write_formula(r, 1 + i, window_formula(name, 8, kind), fmt)
+    comp.write(12, 0, "Check: TTM ROE = margin x turnover x leverage", label_b)
+    for i in range(3):
+        cl = colname(1 + i)
+        comp.write_formula(12, 1 + i, f'=IF(ABS({cl}9*{cl}11*{cl}12-{cl}10)<0.0000005,"YES","NO")', yes_f)
+    comp.write(17, 0, "Trailing ROE by window end", label_b)
+    comp.write(18, 0, "Window", head)
+    for i, name in enumerate(ORDER):
+        comp.write(18, 1 + i, name, co_fmt[name])
+    for n, end_i in enumerate(range(4, 9)):
+        r = 19 + n
+        comp.write(r, 0, SLOTS[end_i - 1], label)
+        for i, name in enumerate(ORDER):
+            comp.write_formula(r, 1 + i, window_formula(name, end_i, "roe"), pct_f)
+    comp.write(25, 0, "Trailing operating margin by window end", label_b)
+    for n, end_i in enumerate(range(4, 9)):
+        r = 26 + n
+        comp.write(r, 0, SLOTS[end_i - 1], label)
+        for i, name in enumerate(ORDER):
+            comp.write_formula(r, 1 + i, window_formula(name, end_i, "opm"), pct_f)
+    comp.write(32, 0, "The latest window's opening equity is the Q2 2025 column on Sources, and the flows are Q3 2025 through Q2 2026. Earlier windows step back one quarter at a time. Operating ROA is n.m. for AMD because interest income is blank.", note)
+    comp.set_row(32, 32)
+
+    cast.write(0, 0, "Twenty-quarter residual income", title)
+    cast.write(1, 0, "Quarterly revenue, margin, income, and ending equity are values. Residual income, the terminal value, and the price are formulas. Ending equity is not a clean-surplus rollforward: assets are annualized revenue divided by the latest turnover, and equity is that asset total times the latest equity ratio. Cost of equity and terminal growth are the annual model's rates.", note)
+    cast.set_row(1, 48)
+    cast.set_column(0, 0, 46)
+    cast.set_column(1, 8, 16)
+    cursor = 3
+    bcol = colname(1)
+    for name in ORDER:
+        fc = FORECASTS[name]
+        assumptions = fc["assumptions"]
+        ke_r, g_r, gq_r, keq_r, sh_r, bk_r = (cursor + i for i in range(1, 7))
+        hdr = cursor + 8
+        q0 = cursor + 9
+        cast.write(cursor, 0, name, co_fmt[name])
+        cast.write(ke_r, 0, "Cost of equity", label)
+        cast.write_number(ke_r, 1, assumptions["ke"], pct_f)
+        cast.write(g_r, 0, "Terminal growth, annual", label)
+        cast.write_number(g_r, 1, assumptions["g"], pct_f)
+        cast.write(gq_r, 0, "Terminal growth, quarterly", label)
+        cast.write_formula(gq_r, 1, f"=(1+{bcol}{g_r + 1})^(1/4)-1", pct_f)
+        cast.write(keq_r, 0, "Cost of equity, quarterly", label)
+        cast.write_formula(keq_r, 1, f"={bcol}{ke_r + 1}/4", pct_f)
+        cast.write(sh_r, 0, "Diluted weighted-average shares, millions", label)
+        cast.write_number(sh_r, 1, fc["shares"], num)
+        cast.write(bk_r, 0, "Opening book equity, latest quarter", label_b)
+        cast.write_number(bk_r, 1, fc["book"], num_b)
+        cast.write(ke_r, 3, "Starting operating margin (trailing)", label)
+        cast.write_number(ke_r, 4, fc["om0"], pct_f)
+        cast.write(g_r, 3, "Target operating margin", label)
+        cast.write_number(g_r, 4, assumptions["om_target"], pct_f)
+        cast.write(gq_r, 3, "Net income / operating income", label)
+        cast.write_number(gq_r, 4, assumptions["ni_on_oi"], x_f)
+        cast.write(keq_r, 3, "Annualized turnover, pinned", label)
+        cast.write_number(keq_r, 4, fc["ato"], x_f)
+        cast.write(sh_r, 3, "Equity / assets, pinned", label)
+        cast.write_number(sh_r, 4, fc["eq_ratio"], pct_f)
+        cast.merge_range(bk_r, 3, bk_r, 8, assumptions["note"], note)
+        headers = ["Quarter", "Revenue", "Operating margin", "Operating income", "Net income", "Equity, end", "Equity, begin", "Residual income", "Present value"]
+        for c, text in enumerate(headers):
+            cast.write(hdr, c, text, head)
+        for j, q in enumerate(fc["quarters"]):
+            r = q0 + j
+            excel = r + 1
+            cast.write_number(r, 0, q["t"], num)
+            cast.write_number(r, 1, q["rev"], num)
+            cast.write_number(r, 2, q["om"], pct_f)
+            cast.write_number(r, 3, q["oi"], num)
+            cast.write_number(r, 4, q["ni"], num)
+            cast.write_number(r, 5, q["eq"], num)
+            if j == 0:
+                cast.write_formula(r, 6, f"={bcol}{bk_r + 1}", num)
+            else:
+                cast.write_formula(r, 6, f"=F{excel - 1}", num)
+            cast.write_formula(r, 7, f"=E{excel}-({bcol}${keq_r + 1}*G{excel})", num)
+            cast.write_formula(r, 8, f"=H{excel}/(1+{bcol}${keq_r + 1})^A{excel}", num)
+        last = q0 + 19
+        pv_r = last + 2
+        tv_r = pv_r + 1
+        ptv_r = pv_r + 2
+        mve_r = pv_r + 3
+        px_r = pv_r + 4
+        y1_r = pv_r + 5
+        cast.write(pv_r, 0, "Present value of residual income", label)
+        cast.write_formula(pv_r, 1, f"=SUM(I{q0 + 1}:I{last + 1})", num_b)
+        cast.write(tv_r, 0, "Terminal value at quarter 20", label)
+        cast.write_formula(tv_r, 1, f"=H{last + 1}*(1+{bcol}{gq_r + 1})/({bcol}{keq_r + 1}-{bcol}{gq_r + 1})", num)
+        cast.write(ptv_r, 0, "Present value of terminal value", label)
+        cast.write_formula(ptv_r, 1, f"={bcol}{tv_r + 1}/(1+{bcol}{keq_r + 1})^A{last + 1}", num)
+        cast.write(mve_r, 0, "Equity value = book + residual income + terminal", label_b)
+        cast.write_formula(mve_r, 1, f"={bcol}{bk_r + 1}+{bcol}{pv_r + 1}+{bcol}{ptv_r + 1}", num_b)
+        cast.write(px_r, 0, "Value per share", label_b)
+        cast.write_formula(px_r, 1, f"={bcol}{mve_r + 1}/{bcol}{sh_r + 1}", px)
+        comp_col = colname(1 + ORDER.index(name))
+        cast.write(y1_r, 0, "Year-1 revenue / trailing revenue - 1", label)
+        cast.write_formula(y1_r, 1, f"=SUM(B{q0 + 1}:B{q0 + 4})/Comparability!{comp_col}5-1", pct_b)
+        cursor = y1_r + 3
+    sens = quarterly_forecast("Intel", om0=qlatest("Intel")["opm"], om_target=0.12)
+    cast.write(cursor, 0, "Intel sensitivity", co_fmt["Intel"])
+    cast.write(cursor + 1, 0, "Same twenty quarters and the same 9.7% cost of equity, with the margin starting at the latest quarter and gliding to 12%. This cell is the computed value, not a second formula block.", note)
+    cast.set_row(cursor + 1, 32)
+    cast.write(cursor + 2, 0, "Sensitivity value per share", label_b)
+    cast.write_number(cursor + 2, 1, sens["price"], px)
+    cast.write(cursor + 3, 0, "Sensitivity equity value", label)
+    cast.write_number(cursor + 3, 1, sens["mve"], num)
     wb.close()
 
-
-# ---------------------------------------------------------------------------
-# Charts
 
 def _style(ax):
     ax.spines["top"].set_visible(False)
@@ -420,28 +618,28 @@ def _style(ax):
 
 def make_charts():
     plt.rcParams["font.family"] = FONT_FAMILY
-    # Calendar position of each fiscal year-end. NVIDIA ends late January;
-    # AMD and Intel end in late December, so NV FY t sits about a month after peer FY t-1.
-    def xs(name):
-        years = WINDOWS[name][1:]
-        if name == "NVIDIA":
-            return [y + 0.08 for y in years]
-        return [(y + 1) - 0.04 for y in years]
+    x = list(range(len(SLOTS)))
 
-    fig, axes = plt.subplots(1, 3, figsize=(7.35, 2.55), dpi=160)
-    series = [
-        ("Operating margin", "opm"),
-        ("ROE", "roe"),
-        ("Operating ROA", "rnoa"),
+    def operating_roa(name):
+        # AMD does not disclose quarterly interest income, so the comparable
+        # operating return is operating income taxed at 21%.
+        key = "alt_ann" if name == "AMD" else "rnoa_ann"
+        return [row[key] * 100 for row in QRATIOS[name]]
+
+    fig, axes = plt.subplots(1, 3, figsize=(7.35, 2.85), dpi=160)
+    panels = [
+        ("Operating margin", lambda name: [row["opm"] * 100 for row in QRATIOS[name]]),
+        ("ROE, annualized", lambda name: [row["roe_ann"] * 100 for row in QRATIOS[name]]),
+        ("Operating ROA, annualized", operating_roa),
     ]
-    for ax, (title, key) in zip(axes, series):
+    for ax, (title, series) in zip(axes, panels):
         for name in ORDER:
-            ys = [RATIOS[name][i][key] * 100 for i in range(len(RATIOS[name]))]
-            ax.plot(xs(name), ys, color=HEXES[name], marker="o", ms=3.5, lw=1.7, label=name, zorder=3)
+            ax.plot(x, series(name), color=HEXES[name], marker="o", ms=3.5, lw=1.7, label=name, zorder=3)
         _style(ax)
         ax.set_title(title, fontsize=9, color="#1B2A4A", loc="left", pad=6)
-        ax.set_xlim(2021.7, 2026.85)
-        ax.set_xticks([2022, 2023, 2024, 2025, 2026])
+        ax.set_xlim(-0.3, 7.3)
+        ax.set_xticks(x)
+        ax.set_xticklabels(SLOTS, fontsize=7)
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _p: f"{v:.0f}%"))
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False, fontsize=8)
@@ -452,24 +650,21 @@ def make_charts():
 
     decomp_paths = []
     for name in ORDER:
-        years = [y % 100 for y in WINDOWS[name][1:]]
-        labels = [f"FY{y:02d}" for y in years]
-        rnoa = [d["rnoa"] * 100 for d in RATIOS[name]]
-        gain = [d["gain"] * 100 for d in RATIOS[name]]
-        roe = [d["roe"] * 100 for d in RATIOS[name]]
-        fig, ax = plt.subplots(figsize=(2.55, 2.45), dpi=160)
-        x = list(range(len(labels)))
-        width = 0.36
-        ax.bar([i - width / 2 for i in x], rnoa, color=HEXES[name], width=width, zorder=2)
-        ax.bar([i + width / 2 for i in x], gain, color="#8E9BAA", width=width, zorder=2)
-        ax.plot(x, roe, color="#1B2A4A", marker="D", ms=4, lw=0, zorder=4)
+        roe = [row["roe_ann"] * 100 for row in QRATIOS[name]]
+        operating = operating_roa(name)
+        fig, ax = plt.subplots(figsize=(2.55, 2.7), dpi=160)
+        ax.plot(x, operating, color=HEXES[name], marker="o", ms=3.2, lw=1.6, zorder=3)
+        if QRATIOS[name][-1]["gain"] is not None:
+            gain = [row["gain"] * 4 * 100 for row in QRATIOS[name]]
+            ax.plot(x, gain, color="#8E9BAA", marker="o", ms=3.0, lw=1.3, zorder=3)
+        ax.plot(x, roe, color="#1B2A4A", marker="D", ms=3.4, lw=1.2, zorder=4)
         _style(ax)
         ax.set_xticks(x)
-        ax.set_xticklabels(labels, fontsize=9, color="#1C2430")
+        ax.set_xticklabels(SLOTS, fontsize=6.5, rotation=45, ha="right")
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _p: f"{v:.0f}%"))
         ax.set_title(name, fontsize=10, color=HEXES[name], loc="left")
         ax.tick_params(axis="y", labelsize=8)
-        fig.subplots_adjust(left=0.18, right=0.97, top=0.88, bottom=0.16)
+        fig.subplots_adjust(left=0.22, right=0.97, top=0.86, bottom=0.28)
         out = CHART / f"decomp_{name.lower()}.png"
         fig.savefig(out)
         plt.close()
@@ -510,6 +705,7 @@ def styles():
     S["dupl"] = ParagraphStyle("dupl", fontName="Calibri", fontSize=6.6, leading=8.0, textColor=INK, alignment=TA_LEFT)
     S["duplb"] = ParagraphStyle("duplb", fontName="Calibri-Bold", fontSize=6.6, leading=8.0, textColor=INK, alignment=TA_LEFT)
     S["yes"] = ParagraphStyle("yes", fontName="Calibri-Bold", fontSize=8, leading=10, textColor=YES, alignment=TA_CENTER)
+    S["dupyes"] = ParagraphStyle("dupyes", fontName="Calibri-Bold", fontSize=6.4, leading=7.6, textColor=YES, alignment=TA_CENTER)
     S["thdark"] = ParagraphStyle("thdark", fontName="Calibri-Bold", fontSize=7.5, leading=9.4, textColor=INK, alignment=TA_CENTER)
     S["banner"] = ParagraphStyle("banner", fontName="Calibri-Bold", fontSize=15, leading=18, textColor=colors.white, alignment=TA_LEFT)
     S["foot"] = ParagraphStyle("foot", **common)
@@ -566,14 +762,28 @@ def zebra_table(rows, widths, header=True, font=7.5):
 
 
 def snapshot_table():
-    nv, amd, intel = latest("NVIDIA"), latest("AMD"), latest("Intel")
+    columns = []
+    for name in ORDER:
+        q = qlatest(name)
+        ttm = latest_ttm(name)
+        ended = qline(name, "Q2 26")["end"]
+        columns.append((
+            f"Q2 26, ended {ended}",
+            bn(qline(name, "Q2 26")["rev"]),
+            pct(q["opm"]),
+            pct(q["roe_ann"]),
+            pct(ttm["roe"]),
+            pct(ttm["opm"]),
+            nd_phrase(q["nd"]),
+        ))
     labels = [
-        ("Latest full year", "FY26, ended Jan 25, 2026", "FY25, ended Dec 27, 2025", "FY25, ended Dec 27, 2025"),
-        ("Revenue", bn(NV[2026]["rev"]), bn(AMD[2025]["rev"]), bn(INTC[2025]["rev"])),
-        ("Operating margin", pct(nv["opm"]), pct(amd["opm"]), pct(intel["opm"])),
-        ("ROE (average equity)", pct(nv["roe"]), pct(amd["roe"]), pct(intel["roe"], 2)),
-        ("Operating ROA (modified DuPont)", pct(nv["rnoa"], 0), pct(amd["rnoa"]), pct(intel["rnoa"], 2)),
-        ("Net cash (net debt) at year-end", f"Net cash {bn(abs(nv['nd']))}", f"Net cash {bn(abs(amd['nd']))}", f"Net debt {bn(intel['nd'])}"),
+        ("Latest quarter", *(row[0] for row in columns)),
+        ("Quarter revenue", *(row[1] for row in columns)),
+        ("Quarter operating margin", *(row[2] for row in columns)),
+        ("ROE, annualized (quarter x 4)", *(row[3] for row in columns)),
+        ("Trailing-twelve-month ROE", *(row[4] for row in columns)),
+        ("Trailing-twelve-month operating margin", *(row[5] for row in columns)),
+        ("Net cash (net debt), quarter-end", *(row[6] for row in columns)),
     ]
     rows = [[
         P("", "thl"),
@@ -584,7 +794,7 @@ def snapshot_table():
     for i, (a, b, c, d) in enumerate(labels):
         style = "tdb" if i == 0 else "td"
         rows.append([P(a, style), P(b, "td"), P(c, "td"), P(d, "td")])
-    widths = [2.15 * inch, 1.70 * inch, 1.70 * inch, 1.70 * inch]
+    widths = [2.45 * inch, 1.63 * inch, 1.63 * inch, 1.63 * inch]
     table = Table(rows, colWidths=widths)
     table.setStyle(TableStyle([
         ("BACKGROUND", (1, 0), (1, 0), NV_C),
@@ -597,6 +807,7 @@ def snapshot_table():
         ("BACKGROUND", (0, 4), (-1, 4), ALT),
         ("BACKGROUND", (0, 5), (-1, 5), colors.white),
         ("BACKGROUND", (0, 6), (-1, 6), ALT),
+        ("BACKGROUND", (0, 7), (-1, 7), colors.white),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ("RIGHTPADDING", (0, 0), (-1, -1), 5),
@@ -732,35 +943,40 @@ def accounting_table():
 
 
 def performance_table():
-    """One block per company, native fiscal years, five ratio years."""
+    """One block per company, eight calendar quarters. Q2 24 is the opening balance and is not shown."""
     blocks = []
+
+    def ocf_text(row):
+        if not row["ocf_capex"]:
+            return "n.m."
+        return f"{row['ocf_capex']:.1f}x"
+
     metrics = [
-        ("Revenue", lambda book, y, d: bn(book[y]["rev"])),
-        ("Operating margin", lambda book, y, d: pct(d["opm"])),
-        ("Net margin", lambda book, y, d: pct(d["npm"], 2 if abs(d["npm"]) < 0.005 else 1)),
-        ("Capex / revenue", lambda book, y, d: pct(d["capex_rev"], 0)),
-        ("Operating cash flow / capex", lambda book, y, d: f"{d['ocf_capex']:.1f}x"),
-        ("Net debt (net cash) / equity", lambda book, y, d: pct(d["nd_eq"], 0)),
+        ("Revenue", lambda row, line: bn(line["rev"])),
+        ("Operating margin", lambda row, line: pct(row["opm"])),
+        ("Net margin", lambda row, line: pct(row["npm"], 1)),
+        ("ROE, annualized", lambda row, line: pct(row["roe_ann"])),
+        ("Capex / revenue", lambda row, line: pct(row["capex_rev"], 0)),
+        ("Operating cash flow / capex", lambda row, line: ocf_text(row)),
+        ("Net debt / equity", lambda row, line: pct(row["nd_eq"], 0)),
     ]
+    widths = [1.86 * inch] + [0.684 * inch] * 8
     for name in ORDER:
-        years = WINDOWS[name][1:]
-        header = [P(name, "thl")] + [P(f"FY{y % 100:02d}", "th") for y in years]
+        header = [P(name, "thl")] + [P(slot, "th") for slot in SLOTS]
         data = [header]
         for label, fn in metrics:
             vals = []
-            for i, year in enumerate(years):
-                vals.append(P(fn(BOOKS[name], year, RATIOS[name][i]), "rightb" if label == "Revenue" else "right"))
+            for i, slot in enumerate(SLOTS):
+                vals.append(P(fn(QRATIOS[name][i], QUARTERS[name][i + 1]), "rightb" if label == "Revenue" else "right"))
             data.append([P(label, "tdb" if label == "Revenue" else "td")] + vals)
-        color = COLORS[name]
-        widths = [2.05 * inch] + [1.04 * inch] * 5
         table = Table(data, colWidths=widths)
         cmds = [
-            ("BACKGROUND", (0, 0), (-1, 0), color),
+            ("BACKGROUND", (0, 0), (-1, 0), COLORS[name]),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 3),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
             ("LINEBELOW", (0, 1), (-1, -2), 0.25, RULE),
         ]
         for i in range(1, len(data)):
@@ -772,54 +988,57 @@ def performance_table():
 
 
 def dupont_blocks():
-    """One portrait table per company. The first column of years is the shaded base year."""
-    label_w = 2.32 * inch
-    year_w = 0.82 * inch
-    widths = [label_w] + [year_w] * 6
+    """One portrait table per company. The shaded column is the Q2 2024 opening balance."""
+    widths = [1.72 * inch] + [0.624 * inch] * 9
     blocks = []
     yes_bg = colors.HexColor("#F7F1F2")
     section_bg = colors.HexColor("#F4F7F8")
+    blanks = 9
 
     def value_row(name, label, key, kind, bold=False):
-        row = [P(label, "tdb" if bold else "td")]
-        row.append(P("", "right"))
-        style = "rightb" if bold else "right"
-        for i in range(len(WINDOWS[name]) - 1):
-            figure = RATIOS[name][i][key]
+        row = [P(label, "duplb" if bold else "dupl")]
+        row.append(P("", "dup"))
+        style = "dupb" if bold else "dup"
+        for i in range(len(SLOTS)):
+            figure = QRATIOS[name][i][key]
             text = pct2(figure) if kind == "pct" else xn(figure)
             row.append(P(text, style))
         return row
 
-    def yes_row(label):
-        row = [P(label, "td"), P("", "yes")]
-        row.extend(P("YES", "yes") for _ in range(5))
+    def yes_row(name, label, modified=False):
+        row = [P(label, "dupl"), P("", "dupyes")]
+        for i in range(len(SLOTS)):
+            ok = (not modified) or QRATIOS[name][i]["rnoa"] is not None
+            row.append(P("YES" if ok else "n.m.", "dupyes"))
         return row
 
     for name in ORDER:
-        years = WINDOWS[name]
-        header = [P(name, "thl")]
-        for i, year in enumerate(years):
-            header.append(P(f"FY{year % 100:02d}", "thdark" if i == 0 else "th"))
+        header = [P(name, "thl"), P("Q2 24", "thdark")]
+        header.extend(P(slot, "th") for slot in SLOTS)
         rows = [
             header,
-            [P("Traditional DuPont", "tdb")] + [P("", "td")] * 6,
+            [P("Traditional DuPont", "duplb")] + [P("", "dup")] * blanks,
             value_row(name, "Net margin", "npm", "pct"),
-            value_row(name, "× Asset turnover (sales / avg assets)", "ato", "x"),
-            value_row(name, "× Leverage (avg assets / avg equity)", "em", "x"),
-            value_row(name, "ROE (net income / avg equity)", "roe", "pct", True),
-            yes_row("Check: ROE = margin × turnover × leverage"),
-            [P("Modified DuPont", "tdb")] + [P("", "td")] * 6,
+            value_row(name, "× Asset turnover", "ato", "x"),
+            value_row(name, "× Leverage", "em", "x"),
+            value_row(name, "ROE", "roe", "pct", True),
+            yes_row(name, "Check: margin × turnover × leverage"),
+            [P("Modified DuPont", "duplb")] + [P("", "dup")] * blanks,
             value_row(name, "NOPAT margin", "pm", "pct"),
-            value_row(name, "× Operating asset turnover (sales / avg NOA)", "turn", "x"),
+            value_row(name, "× NOA turnover", "turn", "x"),
             value_row(name, "Operating ROA", "rnoa", "pct", True),
-            yes_row("Check: operating ROA = NOPAT margin × NOA turn"),
+            yes_row(name, "Check: NOPAT margin × NOA turn", True),
             value_row(name, "Operating ROA", "rnoa", "pct"),
-            value_row(name, "− Net interest cost (after-tax interest / avg net debt)", "nbc", "pct"),
+            value_row(name, "− Net borrowing cost", "nbc", "pct"),
             value_row(name, "Spread", "spread", "pct"),
-            value_row(name, "× Net financial leverage (avg net debt / avg equity)", "flev", "x"),
-            value_row(name, "Gain or loss on financial leverage", "gain", "pct", True),
-            value_row(name, "ROE (net income / avg equity)", "roe", "pct", True),
-            yes_row("Check: ROE = operating ROA + gain"),
+            value_row(name, "× Net financial leverage", "flev", "x"),
+            value_row(name, "Gain or loss on leverage", "gain", "pct", True),
+            value_row(name, "ROE", "roe", "pct", True),
+            yes_row(name, "Check: operating ROA + gain", True),
+            value_row(name, "OI × 0.79 / avg NOA", "alt", "pct"),
+            value_row(name, "ROE, annualized × 4", "roe_ann", "pct", True),
+            value_row(name, "Operating ROA, annualized × 4", "rnoa_ann", "pct", True),
+            value_row(name, "OI × 0.79 ROA, annualized × 4", "alt_ann", "pct"),
         ]
         table = Table(rows, colWidths=widths, repeatRows=1)
         cmds = [
@@ -833,19 +1052,20 @@ def dupont_blocks():
             ("BACKGROUND", (2, 7), (-1, 7), section_bg),
             ("BACKGROUND", (0, 11), (0, 11), yes_bg),
             ("BACKGROUND", (2, 11), (-1, 11), yes_bg),
-            ("BACKGROUND", (0, 17), (0, 17), yes_bg),
-            ("BACKGROUND", (2, 17), (-1, 17), yes_bg),
+            ("BACKGROUND", (0, 18), (0, 18), yes_bg),
+            ("BACKGROUND", (2, 18), (-1, 18), yes_bg),
             ("BACKGROUND", (1, 0), (1, -1), BASE_BG),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 3),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-            ("TOPPADDING", (0, 0), (-1, -1), 2),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-            ("LINEBELOW", (0, 1), (-1, -2), 0.25, RULE),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+            ("TOPPADDING", (0, 0), (-1, -1), 1),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ("LINEBELOW", (0, 1), (-1, -2), 0.2, RULE),
             ("LINEABOVE", (0, -1), (-1, -1), 0.6, NAVY),
         ]
         table.setStyle(TableStyle(cmds))
-        blocks.append(KeepTogether([table, Spacer(1, 8)]))
+        blocks.append(table)
+        blocks.append(Spacer(1, 8))
     return blocks
 
 
@@ -1049,6 +1269,126 @@ def interim_table():
     return table
 
 
+def _three(fn):
+    return [fn(name) for name in ORDER]
+
+
+def comparison_table():
+    """Trailing comparison on the common calendar slot, plus the latest quarter."""
+    header = [P("", "thl"), P("NVIDIA", "centerw"), P("AMD", "centerw"), P("Intel", "centerw")]
+
+    def op_roa(row):
+        return row["alt_ann"] if row["rnoa_ann"] is None else row["rnoa_ann"]
+
+    def ttm_op_roa(row):
+        return row["alt"] if row["rnoa"] is None else row["rnoa"]
+
+    latest_rows = [
+        ("Quarter revenue", lambda name: bn(qline(name, "Q2 26")["rev"])),
+        ("Quarter operating margin", lambda name: pct(qlatest(name)["opm"])),
+        ("Quarter net margin", lambda name: pct(qlatest(name)["npm"])),
+        ("ROE, annualized", lambda name: pct(qlatest(name)["roe_ann"])),
+        ("Operating ROA, annualized", lambda name: pct(op_roa(qlatest(name)))),
+        ("Trailing revenue", lambda name: bn(latest_ttm(name)["rev"])),
+        ("Trailing operating margin", lambda name: pct(latest_ttm(name)["opm"])),
+        ("Trailing net margin", lambda name: pct(latest_ttm(name)["npm"])),
+        ("Trailing ROE", lambda name: pct(latest_ttm(name)["roe"])),
+        ("Trailing operating ROA", lambda name: pct(ttm_op_roa(latest_ttm(name)))),
+        ("Net cash (net debt)", lambda name: nd_phrase(qlatest(name)["nd"])),
+    ]
+    data = [header]
+    for label, fn in latest_rows:
+        data.append([P(label, "tdb" if "Trailing ROE" == label else "td")] + [P(v, "td") for v in _three(fn)])
+    widths = [2.20 * inch, 1.71 * inch, 1.71 * inch, 1.71 * inch]
+    table = zebra_table(data, widths)
+    # Company colors on the header, over the zebra header navy.
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (1, 0), (1, 0), NV_C),
+        ("BACKGROUND", (2, 0), (2, 0), AMD_C),
+        ("BACKGROUND", (3, 0), (3, 0), INTC_C),
+    ]))
+
+    trail = [header]
+    for slot_index in range(3, len(SLOTS)):
+        slot = SLOTS[slot_index]
+        trail.append([P(f"Trailing ROE, {slot}", "td")] + [P(pct(ttm_at(name, slot_index)["roe"]), "td") for name in ORDER])
+    trail.append([P("Trailing operating margin, Q2 26", "tdb")] + [P(pct(latest_ttm(name)["opm"]), "td") for name in ORDER])
+    trail_table = zebra_table(trail, widths)
+    trail_table.setStyle(TableStyle([
+        ("BACKGROUND", (1, 0), (1, 0), NV_C),
+        ("BACKGROUND", (2, 0), (2, 0), AMD_C),
+        ("BACKGROUND", (3, 0), (3, 0), INTC_C),
+    ]))
+    return [table, Spacer(1, 6), trail_table]
+
+
+def forecast_tables():
+    """Five forecast years and the residual-income bridge."""
+    market = {"NVIDIA": 236.16, "AMD": 631.57, "Intel": 117.40}
+    prior = {"NVIDIA": 54.06, "AMD": 44.38, "Intel": 8.03}
+    header = [P("", "thl")] + [P(name, "centerw") for name in ORDER]
+    def year_row(label, key, kind):
+        vals = []
+        for name in ORDER:
+            years = year_totals(name)
+            if kind == "rev":
+                vals.append(bn(years[key]["rev"]))
+            elif kind == "ni":
+                vals.append(bn(years[key]["ni"]))
+            else:
+                vals.append(pct(years[key]["om"]))
+        return [P(label, "td")] + [P(v, "td") for v in vals]
+
+    rev_rows = [header]
+    ni_rows = [header]
+    om_rows = [header]
+    for k in range(5):
+        rev_rows.append(year_row(f"Year {k + 1} revenue", k, "rev"))
+        ni_rows.append(year_row(f"Year {k + 1} net income", k, "ni"))
+        om_rows.append(year_row(f"Year {k + 1} operating margin", k, "om"))
+    growth = [P("Year-1 revenue vs trailing", "tdb")]
+    for name in ORDER:
+        growth.append(P(pct(year_totals(name)[0]["rev"] / latest_ttm(name)["rev"] - 1), "td"))
+    rev_rows.append(growth)
+    widths = [2.20 * inch, 1.71 * inch, 1.71 * inch, 1.71 * inch]
+
+    def paint(table):
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (1, 0), (1, 0), NV_C),
+            ("BACKGROUND", (2, 0), (2, 0), AMD_C),
+            ("BACKGROUND", (3, 0), (3, 0), INTC_C),
+        ]))
+        return table
+
+    bridge_rows = [header]
+    bridge_src = [
+        ("Cost of equity", lambda name: pct(FORECASTS[name]["ke"], 1)),
+        ("Terminal growth", lambda name: pct(FORECASTS[name]["g"], 1)),
+        ("Opening book equity", lambda name: bn(FORECASTS[name]["book"])),
+        ("PV of residual income", lambda name: bn(FORECASTS[name]["pv_ri"])),
+        ("PV of terminal value", lambda name: bn(FORECASTS[name]["pv_tv"])),
+        ("Equity value", lambda name: bn(FORECASTS[name]["mve"])),
+        ("Diluted shares, millions", lambda name: f"{FORECASTS[name]['shares']:,.0f}"),
+        ("Value per share", lambda name: f"${FORECASTS[name]['price']:.2f}"),
+        ("Prior annual model, per share", lambda name: f"${prior[name]:.2f}"),
+        ("Market price, Oct 5, 2026", lambda name: f"${market[name]:.2f}"),
+    ]
+    for label, fn in bridge_src:
+        bold = label in ("Value per share", "Equity value")
+        bridge_rows.append([P(label, "tdb" if bold else "td")] + [P(v, "tdb" if bold else "td") for v in _three(fn)])
+    tables = [
+        paint(zebra_table(rev_rows, widths)),
+        paint(zebra_table(ni_rows, widths)),
+        paint(zebra_table(om_rows, widths)),
+        paint(zebra_table(bridge_rows, widths)),
+    ]
+    flowables = []
+    for table in tables:
+        flowables.append(KeepTogether([table]))
+        flowables.append(Spacer(1, 6))
+    return flowables
+
+
 def footer(canvas, doc, pagesize):
     canvas.saveState()
     width, height = pagesize
@@ -1056,7 +1396,7 @@ def footer(canvas, doc, pagesize):
     canvas.line(0.55 * inch, 0.38 * inch, width - 0.55 * inch, 0.38 * inch)
     canvas.setFillColor(MUTED)
     canvas.setFont("Calibri", 8)
-    canvas.drawString(0.55 * inch, 0.24 * inch, "NVIDIA vs AMD vs Intel  |  Prepared Oct 5, 2026  |  Analysis for study purposes, not investment advice")
+    canvas.drawString(0.55 * inch, 0.24 * inch, "NVIDIA vs AMD vs Intel  |  Prepared Oct 6, 2026  |  Analysis for study purposes, not investment advice")
     canvas.drawRightString(width - 0.55 * inch, 0.24 * inch, str(doc.page))
     canvas.restoreState()
 
@@ -1066,41 +1406,43 @@ def build_story(perf_chart, decomp_charts):
     nv23 = row_of("NVIDIA", 2023)
     story = []
     story.append(P("NVIDIA vs AMD vs Intel", "title"))
-    story.append(P("Accounting, performance and strategy, with DuPont and modified DuPont for the last five fiscal years", "sub"))
-    story.append(P("Prepared October 5, 2026  ·  Excel backup: NVIDIA_vs_AMD_Intel_DuPont_backup.xlsx", "sub"))
-    story.append(P("Five-year ratios are the latest Form 10-Ks. The quarter and the half below are the latest Form 10-Qs and are not in those ratios.", "sub"))
+    qn, qa, qi = qlatest("NVIDIA"), qlatest("AMD"), qlatest("Intel")
+    tn, ta, ti = latest_ttm("NVIDIA"), latest_ttm("AMD"), latest_ttm("Intel")
+    story.append(P("Accounting and performance on quarterly statements, with the 10-K kept for strategy", "sub"))
+    story.append(P("Prepared October 6, 2026  ·  Excel backup: NVIDIA_vs_AMD_Intel_DuPont_backup.xlsx", "sub"))
+    story.append(P("DuPont, the comparison, and the forecast use eight quarters, Q3 2024 through Q2 2026. Sections 1, 3, 4, 6, and 7 stay on the Form 10-K.", "sub"))
     story.append(Spacer(1, 8))
     story.append(snapshot_table())
-    story.append(P("The latest quarter and the first half of 2026 are in section 8. They come from the Form 10-Qs. They are not in the ratios above.", "note"))
+    story.append(P("NVIDIA's quarter ends about four weeks after AMD's and Intel's. Annualized ROE is the quarter times four, so it can sit next to an annual figure. Trailing twelve months is the run-rate. Intel's latest net income is the escrowed-share mark. AMD's modified DuPont is open because quarterly interest income is not disclosed.", "note"))
     story.append(Spacer(1, 8))
     story.append(P("Bottom line", "h"))
     story.append(Spacer(1, 3))
     story.append(bullet(
-        "Three different businesses, one customer.",
-        f"NVIDIA designs the AI system and earned a {pct(nv['opm'])} operating margin in FY26. AMD designs the merchant alternative and earned {pct(amd['opm'])}. Intel builds its own wafers: the product groups earned $12.7bn of operating income and the foundry lost $10.3bn, so the company lost {bn(abs(INTC[2025]['oi']))} on operations.",
+        "Three different businesses, and the quarter already shows it.",
+        f"NVIDIA's latest quarter operating margin is {pct(qn['opm'])} on {bn(qline('NVIDIA', 'Q2 26')['rev'])} of revenue. Trailing, it is {pct(tn['opm'])} on {bn(tn['rev'])}. AMD's latest quarter is {pct(qa['opm'])} and the trailing margin is {pct(ta['opm'])}. Intel's latest quarter operating margin is {pct(qi['opm'])}, on operating income of {bn(qline('Intel', 'Q2 26')['oi'])}, while the trailing operating margin is {pct(ti['opm'])}. The 10-K segment split is unchanged: in 2025 the product groups earned $12.7bn and the foundry lost $10.3bn.",
     ))
     story.append(bullet(
-        "The year-ends are a month apart. The ROE gap is not a timing gap.",
-        f"NVIDIA's FY26 ended January 25, 2026. AMD's and Intel's FY25 ended December 27, 2025. Average-equity ROE is {pct(nv['roe'])}, {pct(amd['roe'])}, and {pct(intel['roe'], 2)}.",
+        "The quarter-ends are four weeks apart. The return is annualized so it can be read as an annual ROE.",
+        f"NVIDIA's quarter ended July 26, 2026. AMD's and Intel's ended June 27, 2026. Annualized ROE this quarter is {pct(qn['roe_ann'])}, {pct(qa['roe_ann'])}, and {pct(qi['roe_ann'])}. Trailing ROE is {pct(tn['roe'])}, {pct(ta['roe'])}, and {pct(ti['roe'])}. Intel's quarterly ROE is the derivative mark, not the operating quarter. The trailing figure is the one to compare.",
     ))
     story.append(bullet(
-        "ROE is earned in operations. Cash, not debt, is what moves NVIDIA's.",
-        f"Financial leverage adds or subtracts a few points at AMD and Intel. NVIDIA's net cash of {bn(abs(nv['nd']))} pulls ROE ({pct(nv['roe'])}) {pct(abs(nv['gain']), 0)} below its operating ROA ({pct(nv['rnoa'], 0)}).",
+        "Where the quarter is clean, ROE is still an operating result.",
+        f"NVIDIA's net cash of {nd_phrase(qn['nd']).replace('Net cash ', '')} cuts annualized ROE to {pct(qn['roe_ann'])} from an annualized operating ROA of {pct(qn['rnoa_ann'])}. AMD's modified DuPont is not computed. Traditional ROE is. Intel's latest ROE is not the operating result.",
     ))
     story.append(bullet(
-        "The accounting stories differ.",
-        "NVIDIA's FY26 net income includes about $8.9bn of pretax equity-security gains, and goodwill rose $14.4bn for a Groq license and a group of employees. AMD's FY25 net income includes an $853m tax benefit. Intel's $26m of net income is a $5.6bn Altera gain and a valuation-allowance tax charge sitting on a $2.2bn operating loss.",
+        "Do not forecast the one-time lines.",
+        f"NVIDIA's Q1 2026 net margin was {pct(qratio('NVIDIA', 'Q1 26')['npm'])} against an operating margin of {pct(qratio('NVIDIA', 'Q1 26')['opm'])}, which is the equity-security gain. AMD's other income lifts net income above operating income, and interest income is not split out. Intel's latest quarter net loss of {bn(abs(qline('Intel', 'Q2 26')['ni']))} sits on an operating profit. The forecast in section 8 does not repeat those items.",
     ))
     story.append(bullet(
         "Fraud screen: nothing found that points to fraud.",
-        "The items worth diligence are NVIDIA's new goodwill and investment gains, Intel's non-operating profit and capitalized interest, and AMD's tax release. Details are in the addendum.",
+        "The items worth diligence are NVIDIA's new goodwill and investment gains, Intel's non-operating profit and capitalized interest, and AMD's tax release. Details are in the addendum. That screen is still the 10-K.",
     ))
     story.append(Spacer(1, 4))
     story.append(P("How to read the periods", "h"))
     story.append(Spacer(1, 2))
-    story.append(P("NVIDIA's fiscal year ends on the last Sunday in January. FY26 ended January 25, 2026. AMD and Intel end on the last Saturday in December. Their FY25 ended December 27, 2025. A NVIDIA fiscal year labeled t is the economic neighbor of the peers' fiscal year t−1, not of their year t. Peer FY26 is not in this filing set.", "body"))
-    story.append(P("The ratio years are NVIDIA FY22–FY26 and AMD and Intel FY21–FY25. The shaded column before them is the base year used only for averages: NVIDIA FY21, AMD FY20, Intel FY20. There is no NVIDIA FY20 10-K in the set. FY21 supplies the opening balance.", "body"))
-    story.append(P("DuPont tables follow the course slide. Balances are averages of the beginning and the end. Equity is the balance-sheet total, which includes non-controlling interests at Intel and is ordinary shareholders' equity at NVIDIA and AMD. Net income is income to the company: Intel's consolidated net income, not the line attributable to Intel. NOPAT adds back only after-tax net interest, at the 21% US statutory rate.", "body"))
+    story.append(P("The ratio window is eight quarters, Q3 2024 through Q2 2026, paired on the calendar. NVIDIA's period ends about four weeks after AMD's and Intel's. The shaded Q2 2024 column is the opening balance and is not a ratio quarter. Sections 1, 3, 4, 6, and 7 stay on the Form 10-K. They are the strategic record. In those sections, NVIDIA FY26, ended January 25, 2026, is the neighbor of AMD and Intel FY25, ended December 27, 2025.", "body"))
+    story.append(P("The identity is the quarter. Net margin times asset turnover times leverage equals ROE, on that quarter's income and the average of the opening and closing balance. Annualized figures are the quarter times four. A quarterly ROE near 28% is an annualized ROE near 112%. Trailing twelve months sums four quarters and divides by the average of equity at the quarter before that window and equity at the end. Margins are not annualized.", "body"))
+    story.append(P("Modified DuPont adds back after-tax net interest at the 21% statutory rate. AMD does not disclose quarterly interest income, so NOPAT, net borrowing cost, and the leverage gain are n.m. The row that taxes operating income at 21% is filled in for all three. Intel's net income is consolidated profit, not the attributable line. Intel's equity includes non-controlling interests.", "body"))
     story.append(Spacer(1, 2))
     story.append(P("Contents", "h"))
     contents = [
@@ -1111,7 +1453,7 @@ def build_story(perf_chart, decomp_charts):
         ("5", "Performance, DuPont and modified DuPont"),
         ("6", "Miscellaneous: three things worth knowing about each"),
         ("7", "Addendum: fraud red-flag screen"),
-        ("8", "Latest quarter, from the 2026 Form 10-Qs"),
+        ("8", "Twenty-quarter residual-income forecast"),
         ("", "Sources and method"),
     ]
     crow = []
@@ -1168,16 +1510,20 @@ def build_story(perf_chart, decomp_charts):
     story.append(bullet("NVIDIA and AMD draw on the same foundry.", "AMD's 10-K says a failure by TSMC to manufacture its 7nm-and-smaller wafers would have a material effect. NVIDIA names TSMC and Samsung the same way. They compete for capacity as well as for customers."))
     story.append(bullet("Intel is trying to be the factory and still be the product.", "In 2025 the product groups made $12.7bn of operating income and the foundry lost $10.3bn. External foundry revenue was $307m. The foundry's customer is still mostly Intel."))
     story.append(bullet("Memory is a supplier, not a peer in these ratios.", "NVIDIA lists SK hynix, Micron, and Samsung as memory vendors and says it uses CoWoS packaging. That is the link to the memory report. It is not a number in the DuPont."))
-    story.append(bullet("Profit in the latest year sits with the designer that does not own the fab.", f"Operating margin {pct(nv['opm'])} at NVIDIA, {pct(amd['opm'])} at AMD, {pct(intel['opm'])} at Intel."))
+    story.append(bullet("Profit in the latest 10-K sits with the designer that does not own the fab.", f"Operating margin {pct(nv['opm'])} at NVIDIA, {pct(amd['opm'])} at AMD, and {pct(intel['opm'])} at Intel. The quarterly comparison is in the next section."))
 
     story.append(section("2", "NVIDIA, AMD, and Intel side by side",
-                         "The latest full year of each. NVIDIA FY26 sits about a month after the peers' FY25."))
+                         "The first table is the latest Form 10-K, the strategic snapshot. The quarterly comparison follows."))
     story.append(side_by_side())
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 8))
+    story.append(P("Quarterly comparison", "h"))
+    story.append(P("Same calendar slot. NVIDIA's quarter ends about four weeks later. Where AMD's operating ROA is shown, it is operating income taxed at 21%, because quarterly interest income is not disclosed.", "deck"))
+    story.extend(comparison_table())
+    story.append(P("Trailing ROE uses four quarters of net income over the average of equity at the quarter before that window and equity at the window end. The first trailing row is Q2 2025.", "note"))
     story.append(P("High-level differences", "h"))
-    story.append(bullet("NVIDIA sells a system and is paid like a software company.", f"A {pct(nv['opm'])} operating margin on {bn(NV[2026]['rev'])} of revenue, with capex at {pct(nv['capex_rev'])} of revenue, is a designer's margin. The balance sheet is net cash."))
-    story.append(bullet("AMD sells the alternative and still carries Xilinx.", "Goodwill and acquisition intangibles are 54% of assets. Operating margin is back to double digits. Turnover cannot look like NVIDIA's while that goodwill sits there."))
-    story.append(bullet("Intel sells a turnaround that has not reached operating profit.", f"Revenue is down by a third from FY21. Capex is still {pct(intel['capex_rev'], 0)} of revenue. Net income of $26m is not evidence that the turnaround has arrived."))
+    story.append(bullet("NVIDIA sells a system and is paid like a software company.", f"Trailing operating margin is {pct(tn['opm'])} on {bn(tn['rev'])}. The latest quarter is {pct(qn['opm'])} on {bn(qline('NVIDIA', 'Q2 26')['rev'])}, and annualized ROE is {pct(qn['roe_ann'])}. Capex is still {pct(qn['capex_rev'])} of the quarter. The balance sheet is net cash."))
+    story.append(bullet("AMD sells the alternative and still carries Xilinx.", f"Trailing operating margin is {pct(ta['opm'])} and trailing ROE is {pct(ta['roe'])}. Annualized asset turnover in the latest quarter is {xn(qa['ato_ann'])}x. Goodwill and acquisition intangibles were 54% of assets in the FY25 10-K, which is why turnover cannot look like NVIDIA's."))
+    story.append(bullet("Intel's latest quarter is not the turnaround.", f"Trailing operating margin is {pct(ti['opm'])} and trailing ROE is {pct(ti['roe'])}. The latest quarter's {pct(qi['opm'])} operating margin sits on a net loss. The 10-K still shows capex at {pct(intel['capex_rev'], 0)} of FY25 revenue, and net income of $26m was not evidence that the turnaround had arrived."))
 
     story.append(section("3", "Strategy",
                          "The strategic question is different for each firm. NVIDIA's is how long a 60% margin lasts. AMD's is whether the GPU franchise can earn on the Xilinx asset base. Intel's is whether the foundry ever earns its capex."))
@@ -1260,40 +1606,36 @@ def build_story(perf_chart, decomp_charts):
         "Intel: do not read $26m of net income as breakeven.",
         f"Operating loss {bn(abs(INTC[2025]['oi']))}. The Altera gain and the valuation allowance dominate the path from that loss to $26m. Operating cash flow of {bn(INTC[2025]['ocf'])} is real and is still short of the $14.6bn investing-section capex. Course-slide operating ROA in 2025 is {pct(intel['rnoa'], 2)} because NOPAT keeps the gain and the tax charge. Taxing operating income at 21% instead, on the same net operating assets, operating ROA is {pct(intel['alt'])}.",
     ))
-    story.append(P("Comparability adjustment used in the ratios: none to the reported figures. The last row of the Excel shows the operating-income version of operating ROA beside the course-slide version. Section 5 discusses the gap.", "note"))
+    story.append(P("The quarterly ratios use the reported figures. The Excel row that taxes operating income at 21% sits beside course-slide operating ROA. AMD's course-slide row is blank. Section 5 discusses the gap. The 10-K quality points above are unchanged.", "note"))
 
     story.append(section("5", "Performance, DuPont and modified DuPont",
-                         "Five years. NVIDIA's trough is FY23. Intel's is FY24. AMD's is the year after Xilinx closed."))
+                         "Eight quarters on one calendar. Returns in the chart are annualized. The identity in the table is the quarter."))
     story.append(fitted_image(perf_chart, 7.25 * inch))
-    story.append(P("Points are plotted at each fiscal year-end. NVIDIA ends in late January and the peers end in late December, so each NVIDIA point sits about a month to the right of the peers' comparable year. The latest points are NVIDIA FY26 and peer FY25.", "note"))
+    story.append(P("The slots are Q3 2024 through Q2 2026. Operating margin is the quarter. ROE and operating ROA are the quarter times four. AMD's operating ROA in the third panel is operating income taxed at 21%. NVIDIA's quarter ends about four weeks later than the slot label shared with AMD and Intel.", "note"))
     story.extend(performance_table())
-    story.append(P("Capex is cash spent on property and equipment, sign ignored. AMD's FY25 capex and operating cash flow include discontinued ZT operations, $38m and $1,216m. Intel's capex is the investing-section additions only. A further $3.0bn in 2025 and $1.2bn in 2024 are classified in financing. Net debt is debt plus long-term operating lease liabilities, minus cash and marketable or short-term investments. Negative means net cash.", "note"))
+    story.append(P("Capex is cash spent, sign ignored. A single quarter is lumpy, so the coverage comment below uses the trailing four quarters. AMD's quarterly capex is purchases of property and equipment. The $38m of discontinued capex is in the FY25 10-K total and is not in these quarters. Intel's quarterly capex is the investing section. The further financing-section equipment additions stay in the 10-K discussion and are not in this ratio. Net debt is debt plus the long-term operating lease line, minus cash and liquid investments. Negative means net cash.", "note"))
     story.append(bullet(
-        "NVIDIA's revenue is a different shape.",
-        f"From {bn(NV[2022]['rev'])} in FY22 to {bn(NV[2026]['rev'])} in FY26, 8.0 times. AMD went from {bn(AMD[2022]['rev'])} to {bn(AMD[2025]['rev'])}. Intel went from {bn(INTC[2021]['rev'])} in FY21 to {bn(INTC[2025]['rev'])}.",
+        "The last four quarters did not converge.",
+        f"Against the year-ago quarter, revenue is up {pct(qline('NVIDIA', 'Q2 26')['rev'] / qline('NVIDIA', 'Q2 25')['rev'] - 1)} at NVIDIA, {pct(qline('AMD', 'Q2 26')['rev'] / qline('AMD', 'Q2 25')['rev'] - 1)} at AMD, and {pct(qline('Intel', 'Q2 26')['rev'] / qline('Intel', 'Q2 25')['rev'] - 1)} at Intel. Trailing revenue is {bn(tn['rev'])}, {bn(ta['rev'])}, and {bn(ti['rev'])}.",
     ))
     story.append(bullet(
-        "The margin gap opened after FY23 and did not close.",
-        f"NVIDIA's operating margin was {pct(nv23['opm'])} in the FY23 trough and {pct(nv['opm'])} in FY26. AMD's was {pct(row_of('AMD', 2023)['opm'])} in FY23 and {pct(amd['opm'])} in FY25. Intel's went from {pct(row_of('Intel', 2021)['opm'])} in FY21 to {pct(row_of('Intel', 2024)['opm'])} in FY24 and {pct(intel['opm'])} in FY25.",
+        "NVIDIA's margin dipped once and then widened. AMD recovered from an operating loss. Intel's trailing margin is about zero.",
+        f"NVIDIA's operating margin was {pct(qratio('NVIDIA', 'Q1 25')['opm'])} in Q1 2025, the export-control quarter, and {pct(qn['opm'])} in the latest quarter. Trailing, it is {pct(tn['opm'])}. AMD posted an operating loss of {bn(abs(qline('AMD', 'Q2 25')['oi']))} in Q2 2025 and an operating margin of {pct(qa['opm'])} in the latest quarter. Trailing margin is {pct(ta['opm'])}. Intel's latest operating margin is {pct(qi['opm'])}. Trailing, it is {pct(ti['opm'])}.",
     ))
     story.append(bullet(
-        "Capital intensity says who owns the factory.",
-        f"NVIDIA's capex was {pct(nv['capex_rev'])} of revenue and operating cash flow covered it {nv['ocf_capex']:.0f} times. AMD is in the same range. Intel's capex was {pct(row_of('Intel', 2023)['capex_rev'], 0)} of revenue in FY23 and still {pct(intel['capex_rev'], 0)} in FY25, and operating cash flow covered {intel['ocf_capex']:.2f}x of that spend.",
+        "Capital intensity still says who owns the factory.",
+        f"Over the last four quarters, NVIDIA spent {bn(tn['capex'])} and operating cash flow covered it {tn['ocf'] / tn['capex']:.1f} times. AMD spent {bn(ta['capex'])} and covered it {ta['ocf'] / ta['capex']:.1f} times. Intel spent {bn(ti['capex'])} against operating cash flow of {bn(ti['ocf'])}, {ti['ocf'] / ti['capex']:.2f} times coverage.",
     ))
     story.append(bullet(
-        "Balance sheets.",
-        f"NVIDIA's net cash went from {bn(abs(row_of('NVIDIA', 2023)['nd']))} at the end of FY23 to {bn(abs(nv['nd']))}. AMD stayed in net cash and ended at {bn(abs(amd['nd']))}. Intel's net debt peaked at {bn(row_of('Intel', 2024)['nd'])} ({pct(row_of('Intel', 2024)['nd_eq'], 0)} of equity) in FY24 and fell to {bn(intel['nd'])} after the Altera proceeds and lower capex.",
+        "Balance sheets, at the latest quarter-end.",
+        f"NVIDIA holds net cash of {bn(abs(qn['nd']))}. AMD holds net cash of {bn(abs(qa['nd']))}. Intel carries net debt of {bn(qi['nd'])}, {pct(qi['nd_eq'], 0)} of quarter-end equity. Debt at NVIDIA rose with the June 2026 notes. The 10-K still has Intel's FY24 net-debt peak and the Altera proceeds. Those are history, not this quarter.",
     ))
 
-    blocks = dupont_blocks()
-    story.append(KeepTogether([
-        Spacer(1, 6),
-        P("Advanced DuPont decomposition of return on equity", "h"),
-        P("Each company is on its own. The shaded column is the base year, used only for the averages. YES is the unrounded identity.", "deck"),
-        blocks[0],
-    ]))
-    story.extend(blocks[1:])
-    story.append(P("Layout and definitions follow the course slide. Equity is the average of beginning and ending balance-sheet equity. Intel's total includes non-controlling interests. Net income is income to the company, so Intel uses consolidated net income rather than net income attributable to Intel. NOPAT = net income + (interest expense − interest income) × (1 − 21%). Net debt = short-term debt, the current portion, and long-term debt, plus the long-term operating lease liability where it is its own balance-sheet line, minus cash and marketable securities or short-term investments. Negative net financial leverage means net cash. Shaded columns are the base year. YES is the unrounded identity; the printed figures are rounded to two decimals. Current operating lease liabilities sit inside accrued liabilities and are not in net debt. Intel's operating leases, about $0.4bn, are in other liabilities and are not in net debt. Intel's FY20 trading assets of $15.7bn are equity securities and are not treated as liquid investments. NVIDIA's $22.3bn of non-marketable equity securities stay inside net operating assets.", "note"))
+    story.append(Spacer(1, 6))
+    story.append(P("Advanced DuPont decomposition of return on equity", "h"))
+    story.append(P("One table per company. The shaded column is Q2 2024, used only for the averages. YES is the unrounded quarterly identity. Annualized rows are the quarter times four and are not a second identity.", "deck"))
+    story.extend(dupont_blocks())
+    story.append(P("Equity is the average of beginning and ending balance-sheet equity. Intel's total includes non-controlling interests. Net income is consolidated profit at Intel. NOPAT adds back only after-tax net interest at 21%. AMD's interest income is not disclosed by quarter, so those rows are n.m. The operating-income row is filled in for all three. Net debt is debt plus the long-term operating lease line, minus cash and liquid investments. Negative net financial leverage means net cash. YES is the unrounded quarter. Printed figures are rounded to two decimals. Current operating leases sit inside accrued liabilities and are not in net debt. Intel's operating leases, about $0.4bn in the 10-K, are in other liabilities and are not in net debt. NVIDIA's non-marketable equity securities stay inside net operating assets.", "note"))
 
     story.append(P("Reading the decomposition", "h"))
     story.append(Spacer(1, 2))
@@ -1306,30 +1648,30 @@ def build_story(perf_chart, decomp_charts):
         ("RIGHTPADDING", (0, 0), (-1, -1), 2),
     ]))
     story.append(img_row)
-    story.append(P("Each panel is that company's own fiscal years. The colored bar is operating ROA. The gray bar is the gain or loss from financial leverage. Diamonds are ROE. The scales differ.", "note"))
+    story.append(P("Color is annualized operating ROA. At AMD it is operating income taxed at 21%, and there is no gain line. Gray, where it is drawn, is the annualized leverage gain. Navy diamonds are annualized ROE. The scales differ.", "note"))
     story.append(bullet(
-        "ROE is an operating story at all three.",
-        f"AMD's leverage effect in FY25 is {pct(amd['gain'])}. Intel's is {pct(intel['gain'])}. Neither explains the gap with NVIDIA. The entire NVIDIA gap versus its own operating ROA is the cash drag of {pct(nv['gain'])}.",
+        "Where the quarter is clean, ROE is an operating result. Intel's latest quarter is not clean.",
+        f"NVIDIA's leverage gain this quarter is {pct(qn['gain'])} of ROE. Annualized, operating ROA is {pct(qn['rnoa_ann'])} and ROE is {pct(qn['roe_ann'])}. The gap is the cash drag. AMD's modified DuPont is open. Annualized ROE is {pct(qa['roe_ann'])}, and operating income taxed at 21% earns {pct(qa['alt_ann'])} annualized. Intel's latest leverage gain is {pct(qi['gain'])}, on a quarter whose net income is the escrowed-share mark.",
     ))
     story.append(bullet(
-        "At NVIDIA, margin sets the level and the asset base sets the latest move.",
-        f"Net margin stayed near {pct(row_of('NVIDIA', 2025)['npm'])} and then {pct(nv['npm'])}. Operating ROA fell from {pct(row_of('NVIDIA', 2025)['rnoa'], 0)} to {pct(nv['rnoa'], 0)} because sales grew more slowly than net operating assets. Ending net operating assets are equity plus net debt, {bn(NV[2026]['eq'] + nv['nd'])}. Inside that number are $22.3bn of non-marketable equity securities, $21.4bn of inventory, and the Groq goodwill. The product margin did not fall. The balance sheet got heavier.",
+        "At NVIDIA, the margin held and the operating-asset base got heavier.",
+        f"Latest-quarter net margin is {pct(qn['npm'])}, next to an operating margin of {pct(qn['opm'])}. Annualized operating ROA was {pct(qratio('NVIDIA', 'Q2 25')['rnoa_ann'])} a year earlier and is {pct(qn['rnoa_ann'])} now. Ending net operating assets, equity plus net debt, are {bn(qline('NVIDIA', 'Q2 26')['eq'] + qn['nd'])}. The 10-K is still the source for what sits inside the operating assets: $22.3bn of non-marketable equity securities at FY26, $21.4bn of inventory, and the Groq goodwill. The product margin did not fall.",
     ))
     story.append(bullet(
-        "AMD's ROE broke when Xilinx arrived, and it is the goodwill that is still holding it down.",
-        f"FY21 ROE was {pct(row_of('AMD', 2021)['roe'])} on a small asset base. FY22 ROE was {pct(row_of('AMD', 2022)['roe'])} after assets jumped from {bn(AMD[2021]['ta'])} to {bn(AMD[2022]['ta'])}. FY25 operating ROA of {pct(amd['rnoa'])} is a {pct(amd['opm'])} margin on 0.47x total-asset turnover. Taxing operating income at 21% instead of using course-slide NOPAT, operating ROA would be {pct(amd['alt'])}. The difference is the tax benefit and the small net-interest add-back.",
+        "AMD's ROE broke when Xilinx arrived. The goodwill is still the reason turnover is low.",
+        f"On the 10-K history, FY21 ROE was {pct(row_of('AMD', 2021)['roe'])} and FY22 ROE was {pct(row_of('AMD', 2022)['roe'])} after assets jumped from {bn(AMD[2021]['ta'])} to {bn(AMD[2022]['ta'])}. This quarter, annualized asset turnover is {xn(qa['ato_ann'])}x and annualized ROE is {pct(qa['roe_ann'])}. Trailing, taxing operating income at 21% and dividing by average net operating assets gives {pct(ta['alt'])}. Course-slide operating ROA is not computed, because interest income is not split out of other income.",
     ))
     story.append(bullet(
-        "Intel's operating ROA near zero is not a sign of a healed business.",
-        f"Course-slide NOPAT keeps the Altera gain and the valuation-allowance charge. Operating ROA is {pct(intel['rnoa'], 2)}. Using operating income taxed at 21%, it is {pct(intel['alt'])}. In FY24 the same two measures were {pct(row_of('Intel', 2024)['rnoa'])} and {pct(row_of('Intel', 2024)['alt'])}: both losses, and the course-slide number was worse because of the impairment and the tax charge. Debt is not the reason. Net financial leverage was {xn(intel['flev'])} in FY25.",
+        "Intel's trailing operating ROA is a loss. The latest quarter's operating ROA is the derivative, not the foundry.",
+        f"Trailing operating ROA is {pct(ti['rnoa'])} and trailing ROE is {pct(ti['roe'])}. The latest quarter, annualized, is an operating ROA of {pct(qi['rnoa_ann'])} because net income is the mark. Operating margin that quarter is {pct(qi['opm'])}. Taxing that operating income at 21% gives an annualized return of {pct(qi['alt_ann'])}. The FY25 10-K operating ROA of {pct(intel['rnoa'], 2)} kept the Altera gain. It is not the trailing figure.",
     ))
     story.append(bullet(
-        "Reported borrowing cost understates Intel's build-out.",
-        f"FY25 after-tax net interest over average net debt is a borrowing cost of {pct(intel['nbc'])}. Interest expense of $1,091m is after $1.2bn capitalized into the fabs. In FY22, interest income exceeded the reported interest expense while the company was in net debt, so net borrowing cost was negative. The cash-flow statement shows cash interest, net of what was capitalized, of $1,106m in 2025.",
+        "Reported borrowing cost still understates Intel's build-out.",
+        f"This quarter, after-tax net interest over average net debt is {pct(qi['nbc'])}. That uses reported interest. The FY25 10-K interest expense of $1,091m is after $1.2bn capitalized into the fabs, and the quarterly line is the same accounting. Net financial leverage this quarter is {xn(qi['flev'])}.",
     ))
     story.append(bullet(
-        "Idle cash is NVIDIA's ROE question, the same way a foundry loss is Intel's.",
-        f"NVIDIA's net cash earns a low single-digit yield. The modified-DuPont borrowing cost on that net cash position is {pct(nv['nbc'])}, against an operating ROA of {pct(nv['rnoa'], 0)}. Buybacks of $40.4bn and the $17.5bn of equity-security purchases are the two uses already visible. How fast the cash is returned, spent on the $22.7bn of leases not yet started, or left invested, will move ROE more than any borrowing will.",
+        "Idle cash is still NVIDIA's ROE question.",
+        f"The quarterly yield in the modified-DuPont borrowing cost is {pct(qn['nbc'])}, against a quarterly operating ROA of {pct(qn['rnoa'])}. Annualized operating ROA is {pct(qn['rnoa_ann'])}. The 10-K uses of cash, the $40.4bn of buybacks and the $17.5bn of equity-security purchases, plus the leases not yet started, are what will move the drag. Borrowing will not.",
     ))
 
     misc_head = section("6", "Miscellaneous", "Three things about each company that the statements make hard to miss.")
@@ -1401,59 +1743,53 @@ def build_story(perf_chart, decomp_charts):
     story.append(bullet("NVIDIA's new item is the Groq goodwill and the equity-security book.", "Both are described in the notes, with methods and amounts. The open question is economic, not forensic: what those assets earn."))
     story.append(bullet("Not answered by this screen.", "Audit fees, accounting headcount, and a page-by-page check that the auditor did not change during the five years. The first two are outside the 10-K. The third can be done from the opinion pages and was not."))
 
+    sens = quarterly_forecast("Intel", om0=qi["opm"], om_target=0.12)
     story.append(CondPageBreak(3.2 * inch))
     story.append(section(
         "8",
-        "Latest quarter, from the 2026 Form 10-Qs",
-        "The five-year DuPont is unchanged. This section is the latest quarter and the first half, on the same definitions.",
+        "Twenty-quarter residual-income forecast",
+        "Five years, one quarter at a time, off the latest quarter. Cost of equity and terminal growth are the annual model's rates.",
     ))
-    story.append(P(
-        "NVIDIA’s quarter ended July 26, 2026 (filed August 26, 2026). AMD’s and Intel’s quarters ended June 27, 2026 (filed August 4 and July 24). NVIDIA and AMD are in 10k filings/quarterly. Intel is accession 0000050863-26-000157. Amounts are the statement lines, in millions.",
-        "body",
+    story.append(P("Residual income each quarter is net income minus the quarterly cost of equity times beginning equity. The horizon is 20 quarters, so the terminal value is not doing the work of a two-year window. Cost of equity is 13.5% for NVIDIA, 12.5% for AMD, and 9.7% for Intel. Terminal growth is 3% a year, converted to a quarterly rate. Those are the rates already used on the annual model. This section does not adopt the higher-growth, lower-discount scenarios in the separate buy-and-sell note.", "body"))
+    story.append(P("The path starts at the latest quarter, not at the last 10-K. NVIDIA's next quarter is the company's $108bn revenue guide, midpoint, with no China data-center compute. Later quarters decelerate from there. AMD and Intel step off the latest quarter. Operating margin starts at the trailing margin, which is the run-rate, and glides to 55% at NVIDIA, 22% at AMD, and 10% at Intel. NVIDIA net income is operating income times the latest quarter's net-income-to-operating-income ratio. AMD and Intel net income is operating income taxed at 21%.", "body"))
+    story.append(bullet(
+        "One-time items are not repeated.",
+        "NVIDIA's Q1 2026 net margin is above the operating margin because of equity-security gains. The cash-flow statement removes $23.7bn of pretax gains in the first half. AMD's other income, including a listing gain, is not treated as ongoing, and quarterly interest income is not disclosed. Intel's quarter includes the mark on the escrowed-share derivative, about $12.5bn in the quarter, which is not interest and is not forecast. Data Center was $89.0bn of the NVIDIA quarter. That is context. It is not a line in the forecast.",
     ))
-    story.append(interim_table())
+    story.append(bullet(
+        "Equity is not a clean-surplus rollforward.",
+        f"Assets each quarter equal annualized revenue divided by the latest quarter's turnover, {xn(FORECASTS['NVIDIA']['ato'])}x at NVIDIA, {xn(FORECASTS['AMD']['ato'])}x at AMD, and {xn(FORECASTS['Intel']['ato'])}x at Intel. Equity is that asset total times the latest equity ratio. Dividends are not modeled. The simplification is the same one the annual model used.",
+    ))
+    story.append(P("Per share uses diluted weighted-average shares for the latest quarter: 24,285 million at NVIDIA, 1,659 million at AMD, and 5,104 million at Intel. Intel was in a loss, so diluted shares are close to basic.", "body"))
+    story.extend(forecast_tables())
     story.append(Spacer(1, 6))
-    story.append(P("What the half does to the annual story", "h"))
     story.append(bullet(
-        "The margin gap widened, it did not close.",
-        f"Half-year operating margin is {pct(Q['NVIDIA']['h_oi']/Q['NVIDIA']['h_rev'])} at NVIDIA, {pct(Q['AMD']['h_oi']/Q['AMD']['h_rev'])} at AMD, and {pct(Q['Intel']['h_oi']/Q['Intel']['h_rev'])} at Intel. The latest full years were {pct(latest('NVIDIA')['opm'])}, {pct(latest('AMD')['opm'])}, and {pct(latest('Intel')['opm'])}. NVIDIA’s quarter was {bn(Q['NVIDIA']['q_rev'])} of revenue and {bn(Q['NVIDIA']['q_oi'])} of operating income. Data Center was $89.0bn of the NVIDIA quarter.",
+        "The value moved because the base moved.",
+        f"The quarterly model puts NVIDIA at ${FORECASTS['NVIDIA']['price']:.2f}, AMD at ${FORECASTS['AMD']['price']:.2f}, and Intel at ${FORECASTS['Intel']['price']:.2f}. The prior annual model, on the last 10-K and the same costs of equity, was $54.06, $44.38, and $8.03. Year-1 revenue versus the trailing twelve months is {pct(year_totals('NVIDIA')[0]['rev'] / tn['rev'] - 1)} at NVIDIA, {pct(year_totals('AMD')[0]['rev'] / ta['rev'] - 1)} at AMD, and {pct(year_totals('Intel')[0]['rev'] / ti['rev'] - 1)} at Intel. NVIDIA's year-1 growth is above the old 30% path because the $108bn guide is the starting quarter, not a linear step off FY26 revenue of {bn(NV[2026]['rev'])}.",
     ))
     story.append(bullet(
-        "Do not read the half-year net income as the operations.",
-        "NVIDIA’s first-half net income of $118.0bn includes $23.7bn of pretax gains on equity securities, removed in the cash-flow statement. Interest income was $1,037m and interest expense was $329m. AMD’s other income of $763m in the half is mostly unrealized gains from a public listing of equity securities. Interest income is not split out of that line in the 10-Q, so a course-slide NOPAT is not computed for AMD’s half. Intel’s consolidated net loss of $15.1bn sits on an operating loss of $1.3bn for the half and an operating profit of $1.8bn for the quarter.",
+        "Intel stays below book on these assumptions, including a kinder margin path.",
+        f"Trailing margin is about breakeven, so the base case glides from there to 10% and the value is ${FORECASTS['Intel']['price']:.2f}. If the path instead starts at this quarter's {pct(qi['opm'])} operating margin and glides only to 12%, the value is ${sens['price']:.2f}. That quarter's margin is not the run-rate: the prior quarter was an operating loss. Either figure is far from the October 5 market price of $117.40.",
     ))
     story.append(bullet(
-        "Intel’s quarter is an operating profit. The half is not. The net loss is a derivative mark.",
-        "Intel Products operating income was $4.8bn in the quarter and $8.9bn in the half. Intel Foundry lost $2.1bn in the quarter and $4.5bn in the half. Interest and other includes a $12.5bn loss in the quarter, and $13.6bn in the half, on the mark-to-market of the escrowed-share derivative. The note splits interest income of $667m and interest expense of $585m for the half. Those are the lines a NOPAT would use. The derivative loss is not interest.",
-    ))
-    story.append(bullet(
-        "Net cash, on the annual definition.",
-        f"NVIDIA ended the quarter at net cash {bn(abs(_qnd('NVIDIA')))}, against {bn(abs(latest('NVIDIA')['nd']))} at January 25, 2026. Of the liquid investments, $42.8bn is marketable equity securities. In June 2026 the company issued $25.0bn of senior notes. Long-term operating lease liabilities were $5.0bn, up from $2.6bn. AMD ended at net cash {bn(abs(_qnd('AMD')))}, against {bn(abs(latest('AMD')['nd']))}. Intel’s net debt was {bn(_qnd('Intel'))}, against {bn(latest('Intel')['nd'])} at December 27, 2025. Equity fell from {bn(INTC[2025]['eq'])} to {bn(Q['Intel']['eq'])}.",
-    ))
-    story.append(bullet(
-        "Cash still covers the designers’ capex and still does not settle Intel’s question.",
-        f"NVIDIA operating cash flow for the half was {bn(Q['NVIDIA']['h_ocf'])} against purchases of property, equipment, and intangibles of {bn(Q['NVIDIA']['h_capex'])}. AMD operating cash flow was {bn(Q['AMD']['h_ocf'])} against purchases of property and equipment of {bn(Q['AMD']['h_capex'])}. Intel operating cash flow was {bn(Q['Intel']['h_ocf'])} against investing-section additions to property, plant, and equipment of {bn(Q['Intel']['h_capex'])}. A further $1.4bn of Intel equipment additions is classified in financing, the same treatment as in the annual note, and is not in that capex figure.",
-    ))
-    story.append(bullet(
-        "The half is not a DuPont year.",
-        "A half-year return on average equity is not comparable to the five annual ROEs, and Intel’s half is dominated by the derivative mark the same way FY25 net income was dominated by the Altera gain. The operating margin is the comparable figure. Q3 is not filed. NVIDIA guides the next quarter to $108bn of revenue, plus or minus 2%, with no Data Center compute revenue from China assumed.",
+        "Market prices are a snapshot, not a new download.",
+        "On October 5, 2026 the buy-and-sell note used $236.16 for NVIDIA, $631.57 for AMD, and $117.40 for Intel. This model does not update those prices and does not change that note's verdicts. The gap between these values and those prices is the point of publishing the quarterly base. It is not a recommendation.",
     ))
 
     story.append(Spacer(1, 8))
     story.append(P("Sources and method", "h"))
     story.append(Spacer(1, 3))
-    story.append(P("Figures", "h"))
-    story.append(P("Every ratio input is a line from the company's Form 10-K in this project's filing folder. Amounts are USD millions. The Excel source sheet holds the lines. The DuPont sheet computes every ratio, and the YES cells test the identity.", "body"))
-    story.append(P("NVIDIA FY22–FY26 income statement, cash, marketable securities, debt, equity, assets, operating cash flow, and capex are the statement lines in the FY26, FY24, and FY23 Form 10-Ks. FY21 is the current-year column of the FY21 Form 10-K. Long-term operating lease liabilities are the balance-sheet line. The FY24 securities balance of $18,704m is the FY24 balance sheet.", "body"))
-    story.append(P("AMD FY20–FY25 income statement, cash, short-term investments, debt, leases, equity, and assets are the statement lines in the FY20, FY22, FY24, and FY25 Form 10-Ks. Interest income for FY20–FY22 is the note table in the FY22 Form 10-K ($8m, $8m, $65m). Interest income for FY23–FY25 is the note table in the FY25 Form 10-K ($206m, $182m, $215m). FY25 capex of $1,012m is purchases of property and equipment of $974m plus $38m in discontinued operations. FY25 operating cash flow of $7,709m is $6,493m continuing plus $1,216m discontinued.", "body"))
-    story.append(P("Intel FY20–FY25 revenue, operating income, cash, short-term investments, debt, equity, and assets are the statement lines. Consolidated net income is the total, not the attributable line: FY25 $26m, FY24 a loss of $19,233m, FY23 $1,675m, FY22 $8,017m. Interest income and interest expense are the interest-and-other note: FY20 from the FY20 10-K, FY21–FY23 from the FY23 10-K, FY24–FY25 from the FY25 10-K. Debt equals the note total (short-term plus long-term), which matches the selected-data debt figure in FY20 ($36,401m). Operating cash flow for FY20 and FY21 is the revised comparative in the FY23 and FY24 cash-flow statements. Capex is additions to property, plant and equipment in the investing section.", "body"))
-    story.append(P("Context used in the prose, each from the latest 10-K: NVIDIA Groq note, segment revenue, customer concentration, geographic revenue, inventory provisions, lease commitments, buybacks, and the foundry and memory supplier list. AMD segment results, TSMC dependence, China revenue, the tax reconciliation, buybacks, and goodwill. Intel segment operating income, the Altera gain, capitalized interest, partner contributions, customer concentration, China billings, and the financing-section equipment additions.", "body"))
-    story.append(P("Quarterly figures in the opening table and in section 8 are statement lines from the Form 10-Q for the period ended July 26, 2026 (NVIDIA), June 27, 2026 (AMD), and June 27, 2026 (Intel). NVIDIA interest income and interest expense are the other-income note. Intel interest income and interest expense are the interest-and-other note, which also holds the escrowed-share mark. AMD interest expense is the income-statement line. AMD interest income is not disclosed apart from other income, so it is not used. NVIDIA capex in the half is purchases of property, equipment, and intangibles. AMD capex is purchases of property and equipment. Intel capex is investing-section additions to property, plant, and equipment. None of these quarterly lines enter the five-year ratio tables or the Excel identities.", "body"))
+    story.append(P("Quarterly figures", "h"))
+    story.append(P("The ratio tables, the comparison, the forecast, and the Excel identities use quarterly statement lines, in USD millions. A tagged quarter is kept. A year-to-date total is split by subtracting the prior year-to-date total. The fourth quarter is the rounded fiscal year minus the three rounded quarters, so the four quarters add to the 10-K. That plug is within $2 million of the unrounded residual. The Excel DuPont sheet computes every ratio, and the YES cells test the quarterly identity. Averages are written as (((opening)+(closing))/2).", "body"))
+    story.append(P("NVIDIA flows are revenue, operating income, net income, interest expense, interest income, operating cash flow, and purchases of property, equipment, and intangibles. Liquid investments are marketable securities through October 2025, and current debt securities plus equity securities at fair value from January 25, 2026. AMD interest income is annual-only in the filing taxonomy, so it is blank and modified DuPont is not computed. AMD capex is purchases of property and equipment. The FY25 10-K capex of $1,012m includes $38m discontinued, which is not in the quarterly series. Intel net income is consolidated profit, the line that ties to FY25 income of $26m, not net income attributable to Intel. Intel equity includes non-controlling interests. Intel capex is investing-section additions. Face cash was not tagged on June 29, 2024, September 28, 2024, and March 29, 2025, so those three balances are cash plus restricted cash.", "body"))
+    story.append(P("The latest filings in the ratio window are NVIDIA's Form 10-Q for the quarter ended July 26, 2026, filed August 26, 2026, and the AMD and Intel Form 10-Qs for the quarter ended June 27, 2026, filed August 4 and July 24. Shares are diluted weighted-average shares for that quarter.", "body"))
+    story.append(P("10-K figures, used for strategy", "h"))
+    story.append(P("Sections 1, 3, 4, 6, and 7, and the first table in section 2, use the Form 10-K lines. They are not the ratio window. NVIDIA FY22 through FY26, AMD FY20 through FY25, and Intel FY20 through FY25 are the statement lines named in the prior source note: income, cash, liquid investments, debt, leases, equity, assets, operating cash flow, and capex. Intel consolidated net income is the total, not the attributable line. Intel FY20 and FY21 operating cash flow is the revised comparative. AMD FY25 capex of $1,012m and operating cash flow of $7,709m include discontinued operations.", "body"))
+    story.append(P("Context in the strategy sections, each from the latest 10-K: NVIDIA's Groq note, segments, customers, geography, inventory, lease commitments, and buybacks. AMD's segments, TSMC dependence, China revenue, the tax reconciliation, and goodwill. Intel's segment operating income, the Altera gain, capitalized interest, partner contributions, and the financing-section equipment additions. The half-year one-time amounts in section 8, the equity-security gains, the escrowed-share mark, and Data Center revenue of $89.0bn, are note disclosures in the latest 10-Qs. They are not DuPont inputs.", "body"))
     story.append(P("Limits", "h"))
-    story.append(P("The latest columns are one month apart, not one year. Pairing NVIDIA FY26 with AMD or Intel FY26 would be wrong, because those peer years are not filed here.", "body"))
-    story.append(P("Net debt leaves out current operating lease liabilities, which are inside accrued liabilities, and leaves out Intel's operating leases of about $0.4bn. It leaves out Intel's FY20 trading assets of $15.7bn because they are equity securities rather than cash or debt securities. It leaves NVIDIA's non-marketable equity securities inside net operating assets. Moving any of those choices would change operating ROA. The direction of the comparison would not change.", "body"))
-    story.append(P("Intel's second equipment line, classified in financing, is disclosed and is not in the capex ratio. Adding it would make FY25 capex $17.7bn and the cash-flow coverage weaker.", "body"))
-    story.append(P("Audit fees, headcount, and a full five-year auditor-tenure check were not done. Market prices are not in this filing set. The latest quarter is in section 8 and is not in the five-year snapshot or the DuPont identities.", "body"))
+    story.append(P("Quarter-ends are about four weeks apart. Pairing by calendar slot is the comparison. It is not a same-day comparison. In the strategy tables, NVIDIA FY26 is still paired with AMD and Intel FY25, because those are the latest 10-Ks.", "body"))
+    story.append(P("Net debt leaves out current operating lease liabilities and Intel's operating leases of about $0.4bn. It leaves NVIDIA's non-marketable equity securities inside net operating assets. AMD's modified DuPont is open on purpose. The forecast pins turnover and the equity ratio to the latest quarter and does not roll equity forward from earnings. Moving those choices would change the level. The ordering of the three companies would not.", "body"))
+    story.append(P("Audit fees, headcount, and a full auditor-tenure check were not done. Market prices are the October 5, 2026 snapshot in the buy-and-sell note, not a live quote. The buy-and-sell verdicts are unchanged and use different assumptions.", "body"))
     story.append(P("This is analysis for study purposes. It is not investment advice, and I am not a financial advisor.", "body"))
     return story
 
@@ -1473,13 +1809,22 @@ def main():
         PageTemplate(id="portrait", frames=[frame_p], onPage=lambda c, d: footer(c, d, letter), pagesize=letter),
     ])
     doc.build(build_story(perf, decomps))
-    # Sanity: snapshot numbers match the decomposition.
     nv = latest("NVIDIA")
+    q = qlatest("NVIDIA")
     assert abs(nv["roe"] - (nv["rnoa"] + nv["gain"])) < 1e-9
+    assert abs((q["rnoa"] + q["gain"]) - q["roe"]) < 1e-6
+    assert qlatest("AMD")["rnoa"] is None
+    assert abs(latest_ttm("NVIDIA")["roe"] - 1.172) < 0.002
+    assert len(FORECASTS["NVIDIA"]["quarters"]) == 20
     print("wrote", OUT)
     print("wrote", XLSX)
-    print("NVIDIA FY26 ROE", pct(nv["roe"]), "RNOA", pct(nv["rnoa"]), "gain", pct(nv["gain"]))
-    print("AMD FY25 ROE", pct(latest("AMD")["roe"]), "Intel FY25 ROE", pct(latest("Intel")["roe"], 2))
+    print(
+        "quarterly price",
+        f"{FORECASTS['NVIDIA']['price']:.2f}",
+        f"{FORECASTS['AMD']['price']:.2f}",
+        f"{FORECASTS['Intel']['price']:.2f}",
+    )
+    print("NVIDIA TTM ROE", pct(latest_ttm("NVIDIA")["roe"]), "annualized latest", pct(q["roe_ann"]))
 
 
 if __name__ == "__main__":
