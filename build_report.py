@@ -1408,7 +1408,7 @@ def build_story(perf_chart, decomp_charts):
         "The five-year DuPont is unchanged. This section is the latest quarter and the first half, on the same definitions.",
     ))
     story.append(P(
-        "NVIDIA, AMD, and Intel are domestic issuers. They file Form 10-Q for the quarter, not Form 6-K. Form 6-K is the report a foreign private issuer furnishes under Rules 13a-16 and 15d-16. The quarterly statements used here are the 10-Qs. NVIDIA’s and AMD’s PDFs are in 10k filings/quarterly. Intel’s 10-Q is accession 0000050863-26-000157.",
+        "NVIDIA’s quarter ended July 26, 2026 (filed August 26, 2026). AMD’s and Intel’s quarters ended June 27, 2026 (filed August 4 and July 24). NVIDIA and AMD are in 10k filings/quarterly. Intel is accession 0000050863-26-000157. Amounts are the statement lines, in millions.",
         "body",
     ))
     story.append(interim_table())
@@ -1436,7 +1436,7 @@ def build_story(perf_chart, decomp_charts):
     ))
     story.append(bullet(
         "The half is not a DuPont year.",
-        "A half-year return on average equity is not comparable to the five annual ROEs, and Intel’s half is dominated by the derivative mark the same way FY25 net income was dominated by the Altera gain. The operating margin is the comparable figure. Q3 is not filed. NVIDIA’s August 26, 2026 earnings release, furnished with the results and not a line in the 10-Q, guides the next quarter to $108bn of revenue, plus or minus 2%, with no Data Center compute revenue from China assumed.",
+        "A half-year return on average equity is not comparable to the five annual ROEs, and Intel’s half is dominated by the derivative mark the same way FY25 net income was dominated by the Altera gain. The operating margin is the comparable figure. Q3 is not filed. NVIDIA guides the next quarter to $108bn of revenue, plus or minus 2%, with no Data Center compute revenue from China assumed.",
     ))
 
     story.append(Spacer(1, 8))
