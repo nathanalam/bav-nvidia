@@ -58,7 +58,7 @@
 
 `build_report.py` writes the Deliverable #3 draft, `reports/Alam_NVIDIA_Accounting_Performance.pdf`.
 
-The report uses the curated filing extracts in this repo. NVIDIA's fiscal year ends in January, so comparisons are aligned: NVIDIA FY t is paired with AMD and Intel FY t−1. Traditional and advanced DuPont both use ending equity, so the two ROE figures match. The five-year residual-income forecast uses the same engine for NVIDIA, AMD, and Intel: 15% tax, book equity rolling forward by net income, a 12% equity charge, and 3.5% terminal growth. Growth and margin paths differ by firm. No off-balance-sheet plug is added.
+The report compares NVIDIA, AMD, and Intel on average balances. NVIDIA's fiscal year ends in late January, so NVIDIA FY t is the neighbor of AMD and Intel FY t−1. Traditional DuPont is net margin times sales over average assets times average assets over average equity. Modified DuPont follows the course slide: NOPAT is net income plus after-tax net interest at the 21% statutory rate, and net debt is debt plus the long-term operating-lease line, minus cash and liquid investments. The Excel backup, `reports/NVIDIA_vs_AMD_Intel_DuPont_backup.xlsx`, computes the ratios and tests each identity.
 
 ```powershell
 uv sync
