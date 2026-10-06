@@ -41,13 +41,31 @@ XLSX = ROOT / "reports" / "NVIDIA_vs_AMD_Intel_DuPont_backup.xlsx"
 CHART = ROOT / "reports" / "charts"
 CHART.mkdir(parents=True, exist_ok=True)
 
-FONT = Path(r"C:\Windows\Fonts")
-pdfmetrics.registerFont(TTFont("Calibri", str(FONT / "calibri.ttf")))
-pdfmetrics.registerFont(TTFont("Calibri-Bold", str(FONT / "calibrib.ttf")))
-pdfmetrics.registerFont(TTFont("Calibri-Italic", str(FONT / "calibrii.ttf")))
-pdfmetrics.registerFont(TTFont("Calibri-BoldItalic", str(FONT / "calibriz.ttf")))
-font_manager.fontManager.addfont(str(FONT / "calibri.ttf"))
-font_manager.fontManager.addfont(str(FONT / "calibrib.ttf"))
+# Carlito is the metric-compatible face used when Calibri is not installed.
+_FONT_SETS = [
+    (Path(r"C:\Windows\Fonts"), {
+        "Calibri": "calibri.ttf",
+        "Calibri-Bold": "calibrib.ttf",
+        "Calibri-Italic": "calibrii.ttf",
+        "Calibri-BoldItalic": "calibriz.ttf",
+    }, "Calibri"),
+    (Path("/tmp/fonts/carlito-main/fonts/ttf"), {
+        "Calibri": "Carlito-Regular.ttf",
+        "Calibri-Bold": "Carlito-Bold.ttf",
+        "Calibri-Italic": "Carlito-Italic.ttf",
+        "Calibri-BoldItalic": "Carlito-BoldItalic.ttf",
+    }, "Carlito"),
+]
+FONT_FAMILY = "Calibri"
+for _dir, _files, _family in _FONT_SETS:
+    if all((_dir / name).exists() for name in _files.values()):
+        for face, filename in _files.items():
+            pdfmetrics.registerFont(TTFont(face, str(_dir / filename)))
+            font_manager.fontManager.addfont(str(_dir / filename))
+        FONT_FAMILY = _family
+        break
+else:
+    raise SystemExit("No Calibri or Carlito fonts found")
 
 NAVY = colors.HexColor("#1B2A4A")
 INK = colors.HexColor("#1C2430")
@@ -401,7 +419,7 @@ def _style(ax):
 
 
 def make_charts():
-    plt.rcParams["font.family"] = "Calibri"
+    plt.rcParams["font.family"] = FONT_FAMILY
     # Calendar position of each fiscal year-end. NVIDIA ends late January;
     # AMD and Intel end in late December, so NV FY t sits about a month after peer FY t-1.
     def xs(name):
@@ -937,6 +955,100 @@ def fraud_table():
     return table
 
 
+# Half-year and quarter figures from the 2026 Form 10-Qs. Not a sixth DuPont year.
+# liq follows the annual definition: NVIDIA marketable debt + marketable equity securities;
+# AMD and Intel short-term investments. lease is the long-term operating-lease line.
+# Intel interest income and interest expense are the note split, not the interest-and-other total.
+Q = {
+    "NVIDIA": dict(
+        label="Q2 FY27, ended Jul 26, 2026",
+        half="Six months ended Jul 26, 2026",
+        q_rev=96221, q_oi=63734, q_ni=59688,
+        h_rev=177837, h_oi=117270, h_ni=118010,
+        h_ix=329, h_ii=1037, h_ocf=74421, h_capex=4434,
+        cash=22443, liq=34143 + 42783, debt=1000 + 32366, lease=4985,
+        ta=320272, eq=228984,
+        filing="Form 10-Q, accession 0001045810-26-000075, filed Aug 26, 2026",
+    ),
+    "AMD": dict(
+        label="Q2 2026, ended Jun 27, 2026",
+        half="Six months ended Jun 27, 2026",
+        q_rev=11536, q_oi=1990, q_ni=2297,
+        h_rev=21789, h_oi=3466, h_ni=3680,
+        h_ix=74, h_ii=None, h_ocf=5321, h_capex=1197,
+        cash=5086, liq=8025, debt=875 + 2351, lease=1050,
+        ta=84464, eq=67224,
+        filing="Form 10-Q, accession 0000002488-26-000123, filed Aug 4, 2026",
+    ),
+    "Intel": dict(
+        label="Q2 2026, ended Jun 27, 2026",
+        half="Six months ended Jun 27, 2026",
+        q_rev=16128, q_oi=1796, q_ni=-10848,
+        h_rev=29705, h_oi=-1340, h_ni=-15129,
+        h_ix=585, h_ii=667, h_ocf=8102, h_capex=6192,
+        cash=12874, liq=16853, debt=1988 + 48549, lease=0,
+        ta=202439, eq=103143,
+        filing="Form 10-Q, accession 0000050863-26-000157, filed Jul 24, 2026",
+    ),
+}
+
+
+def _qnd(name):
+    row = Q[name]
+    return row["debt"] + row["lease"] - row["cash"] - row["liq"]
+
+
+def interim_table():
+    """Same three-column comparison as the annual snapshot, for the latest quarter and the half."""
+    def nd_text(name):
+        nd = _qnd(name)
+        if nd < 0:
+            return f"Net cash {bn(abs(nd))}"
+        return f"Net debt {bn(nd)}"
+
+    rows_src = [
+        ("Latest quarter on file", Q["NVIDIA"]["label"], Q["AMD"]["label"], Q["Intel"]["label"]),
+        ("Quarter revenue", bn(Q["NVIDIA"]["q_rev"]), bn(Q["AMD"]["q_rev"]), bn(Q["Intel"]["q_rev"])),
+        ("Quarter operating income", bn(Q["NVIDIA"]["q_oi"]), bn(Q["AMD"]["q_oi"]), bn(Q["Intel"]["q_oi"])),
+        ("Quarter operating margin",
+         pct(Q["NVIDIA"]["q_oi"] / Q["NVIDIA"]["q_rev"]),
+         pct(Q["AMD"]["q_oi"] / Q["AMD"]["q_rev"]),
+         pct(Q["Intel"]["q_oi"] / Q["Intel"]["q_rev"])),
+        ("Quarter net income", bn(Q["NVIDIA"]["q_ni"]), bn(Q["AMD"]["q_ni"]), bn(Q["Intel"]["q_ni"])),
+        ("Half-year revenue", bn(Q["NVIDIA"]["h_rev"]), bn(Q["AMD"]["h_rev"]), bn(Q["Intel"]["h_rev"])),
+        ("Half-year operating margin",
+         pct(Q["NVIDIA"]["h_oi"] / Q["NVIDIA"]["h_rev"]),
+         pct(Q["AMD"]["h_oi"] / Q["AMD"]["h_rev"]),
+         pct(Q["Intel"]["h_oi"] / Q["Intel"]["h_rev"])),
+        ("Half-year net income", bn(Q["NVIDIA"]["h_ni"]), bn(Q["AMD"]["h_ni"]), bn(Q["Intel"]["h_ni"])),
+        ("Net cash (net debt), quarter-end", nd_text("NVIDIA"), nd_text("AMD"), nd_text("Intel")),
+    ]
+    header = [P("", "thl"), P("NVIDIA", "centerw"), P("AMD", "centerw"), P("Intel", "centerw")]
+    data = [header]
+    for label, a, b, c in rows_src:
+        data.append([P(label, "tdb" if label.startswith("Latest") else "td"), P(a, "td"), P(b, "td"), P(c, "td")])
+    widths = [2.15 * inch, 1.70 * inch, 1.70 * inch, 1.70 * inch]
+    table = Table(data, colWidths=widths, repeatRows=1)
+    cmds = [
+        ("BACKGROUND", (0, 0), (0, 0), NAVY),
+        ("BACKGROUND", (1, 0), (1, 0), NV_C),
+        ("BACKGROUND", (2, 0), (2, 0), AMD_C),
+        ("BACKGROUND", (3, 0), (3, 0), INTC_C),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LINEBELOW", (0, 1), (-1, -2), 0.25, RULE),
+        ("LINEBELOW", (0, -1), (-1, -1), 1, NAVY),
+    ]
+    for i in range(1, len(data)):
+        if i % 2 == 0:
+            cmds.append(("BACKGROUND", (0, i), (-1, i), ZEBRA))
+    table.setStyle(TableStyle(cmds))
+    return table
+
+
 def footer(canvas, doc, pagesize):
     canvas.saveState()
     width, height = pagesize
@@ -944,7 +1056,7 @@ def footer(canvas, doc, pagesize):
     canvas.line(0.55 * inch, 0.38 * inch, width - 0.55 * inch, 0.38 * inch)
     canvas.setFillColor(MUTED)
     canvas.setFont("Calibri", 8)
-    canvas.drawString(0.55 * inch, 0.24 * inch, "NVIDIA vs AMD vs Intel  |  Prepared Oct 6, 2026  |  Analysis for study purposes, not investment advice")
+    canvas.drawString(0.55 * inch, 0.24 * inch, "NVIDIA vs AMD vs Intel  |  Prepared Oct 5, 2026  |  Analysis for study purposes, not investment advice")
     canvas.drawRightString(width - 0.55 * inch, 0.24 * inch, str(doc.page))
     canvas.restoreState()
 
@@ -955,9 +1067,11 @@ def build_story(perf_chart, decomp_charts):
     story = []
     story.append(P("NVIDIA vs AMD vs Intel", "title"))
     story.append(P("Accounting, performance and strategy, with DuPont and modified DuPont for the last five fiscal years", "sub"))
-    story.append(P("Prepared October 6, 2026  ·  Excel backup: NVIDIA_vs_AMD_Intel_DuPont_backup.xlsx", "sub"))
+    story.append(P("Prepared October 5, 2026  ·  Excel backup: NVIDIA_vs_AMD_Intel_DuPont_backup.xlsx", "sub"))
+    story.append(P("Five-year ratios are the latest Form 10-Ks. The quarter and the half below are the latest Form 10-Qs and are not in those ratios.", "sub"))
     story.append(Spacer(1, 8))
     story.append(snapshot_table())
+    story.append(P("The latest quarter and the first half of 2026 are in section 8. They come from the Form 10-Qs. They are not in the ratios above.", "note"))
     story.append(Spacer(1, 8))
     story.append(P("Bottom line", "h"))
     story.append(Spacer(1, 3))
@@ -997,6 +1111,7 @@ def build_story(perf_chart, decomp_charts):
         ("5", "Performance, DuPont and modified DuPont"),
         ("6", "Miscellaneous: three things worth knowing about each"),
         ("7", "Addendum: fraud red-flag screen"),
+        ("8", "Latest quarter, from the 2026 Form 10-Qs"),
         ("", "Sources and method"),
     ]
     crow = []
@@ -1287,6 +1402,43 @@ def build_story(perf_chart, decomp_charts):
     story.append(bullet("Not answered by this screen.", "Audit fees, accounting headcount, and a page-by-page check that the auditor did not change during the five years. The first two are outside the 10-K. The third can be done from the opinion pages and was not."))
 
     story.append(CondPageBreak(3.2 * inch))
+    story.append(section(
+        "8",
+        "Latest quarter, from the 2026 Form 10-Qs",
+        "The five-year DuPont is unchanged. This section is the latest quarter and the first half, on the same definitions.",
+    ))
+    story.append(P(
+        "NVIDIA’s quarter ended July 26, 2026 (filed August 26, 2026). AMD’s and Intel’s quarters ended June 27, 2026 (filed August 4 and July 24). NVIDIA and AMD are in 10k filings/quarterly. Intel is accession 0000050863-26-000157. Amounts are the statement lines, in millions.",
+        "body",
+    ))
+    story.append(interim_table())
+    story.append(Spacer(1, 6))
+    story.append(P("What the half does to the annual story", "h"))
+    story.append(bullet(
+        "The margin gap widened, it did not close.",
+        f"Half-year operating margin is {pct(Q['NVIDIA']['h_oi']/Q['NVIDIA']['h_rev'])} at NVIDIA, {pct(Q['AMD']['h_oi']/Q['AMD']['h_rev'])} at AMD, and {pct(Q['Intel']['h_oi']/Q['Intel']['h_rev'])} at Intel. The latest full years were {pct(latest('NVIDIA')['opm'])}, {pct(latest('AMD')['opm'])}, and {pct(latest('Intel')['opm'])}. NVIDIA’s quarter was {bn(Q['NVIDIA']['q_rev'])} of revenue and {bn(Q['NVIDIA']['q_oi'])} of operating income. Data Center was $89.0bn of the NVIDIA quarter.",
+    ))
+    story.append(bullet(
+        "Do not read the half-year net income as the operations.",
+        "NVIDIA’s first-half net income of $118.0bn includes $23.7bn of pretax gains on equity securities, removed in the cash-flow statement. Interest income was $1,037m and interest expense was $329m. AMD’s other income of $763m in the half is mostly unrealized gains from a public listing of equity securities. Interest income is not split out of that line in the 10-Q, so a course-slide NOPAT is not computed for AMD’s half. Intel’s consolidated net loss of $15.1bn sits on an operating loss of $1.3bn for the half and an operating profit of $1.8bn for the quarter.",
+    ))
+    story.append(bullet(
+        "Intel’s quarter is an operating profit. The half is not. The net loss is a derivative mark.",
+        "Intel Products operating income was $4.8bn in the quarter and $8.9bn in the half. Intel Foundry lost $2.1bn in the quarter and $4.5bn in the half. Interest and other includes a $12.5bn loss in the quarter, and $13.6bn in the half, on the mark-to-market of the escrowed-share derivative. The note splits interest income of $667m and interest expense of $585m for the half. Those are the lines a NOPAT would use. The derivative loss is not interest.",
+    ))
+    story.append(bullet(
+        "Net cash, on the annual definition.",
+        f"NVIDIA ended the quarter at net cash {bn(abs(_qnd('NVIDIA')))}, against {bn(abs(latest('NVIDIA')['nd']))} at January 25, 2026. Of the liquid investments, $42.8bn is marketable equity securities. In June 2026 the company issued $25.0bn of senior notes. Long-term operating lease liabilities were $5.0bn, up from $2.6bn. AMD ended at net cash {bn(abs(_qnd('AMD')))}, against {bn(abs(latest('AMD')['nd']))}. Intel’s net debt was {bn(_qnd('Intel'))}, against {bn(latest('Intel')['nd'])} at December 27, 2025. Equity fell from {bn(INTC[2025]['eq'])} to {bn(Q['Intel']['eq'])}.",
+    ))
+    story.append(bullet(
+        "Cash still covers the designers’ capex and still does not settle Intel’s question.",
+        f"NVIDIA operating cash flow for the half was {bn(Q['NVIDIA']['h_ocf'])} against purchases of property, equipment, and intangibles of {bn(Q['NVIDIA']['h_capex'])}. AMD operating cash flow was {bn(Q['AMD']['h_ocf'])} against purchases of property and equipment of {bn(Q['AMD']['h_capex'])}. Intel operating cash flow was {bn(Q['Intel']['h_ocf'])} against investing-section additions to property, plant, and equipment of {bn(Q['Intel']['h_capex'])}. A further $1.4bn of Intel equipment additions is classified in financing, the same treatment as in the annual note, and is not in that capex figure.",
+    ))
+    story.append(bullet(
+        "The half is not a DuPont year.",
+        "A half-year return on average equity is not comparable to the five annual ROEs, and Intel’s half is dominated by the derivative mark the same way FY25 net income was dominated by the Altera gain. The operating margin is the comparable figure. Q3 is not filed. NVIDIA guides the next quarter to $108bn of revenue, plus or minus 2%, with no Data Center compute revenue from China assumed.",
+    ))
+
     story.append(Spacer(1, 8))
     story.append(P("Sources and method", "h"))
     story.append(Spacer(1, 3))
@@ -1296,11 +1448,12 @@ def build_story(perf_chart, decomp_charts):
     story.append(P("AMD FY20–FY25 income statement, cash, short-term investments, debt, leases, equity, and assets are the statement lines in the FY20, FY22, FY24, and FY25 Form 10-Ks. Interest income for FY20–FY22 is the note table in the FY22 Form 10-K ($8m, $8m, $65m). Interest income for FY23–FY25 is the note table in the FY25 Form 10-K ($206m, $182m, $215m). FY25 capex of $1,012m is purchases of property and equipment of $974m plus $38m in discontinued operations. FY25 operating cash flow of $7,709m is $6,493m continuing plus $1,216m discontinued.", "body"))
     story.append(P("Intel FY20–FY25 revenue, operating income, cash, short-term investments, debt, equity, and assets are the statement lines. Consolidated net income is the total, not the attributable line: FY25 $26m, FY24 a loss of $19,233m, FY23 $1,675m, FY22 $8,017m. Interest income and interest expense are the interest-and-other note: FY20 from the FY20 10-K, FY21–FY23 from the FY23 10-K, FY24–FY25 from the FY25 10-K. Debt equals the note total (short-term plus long-term), which matches the selected-data debt figure in FY20 ($36,401m). Operating cash flow for FY20 and FY21 is the revised comparative in the FY23 and FY24 cash-flow statements. Capex is additions to property, plant and equipment in the investing section.", "body"))
     story.append(P("Context used in the prose, each from the latest 10-K: NVIDIA Groq note, segment revenue, customer concentration, geographic revenue, inventory provisions, lease commitments, buybacks, and the foundry and memory supplier list. AMD segment results, TSMC dependence, China revenue, the tax reconciliation, buybacks, and goodwill. Intel segment operating income, the Altera gain, capitalized interest, partner contributions, customer concentration, China billings, and the financing-section equipment additions.", "body"))
+    story.append(P("Quarterly figures in the opening table and in section 8 are statement lines from the Form 10-Q for the period ended July 26, 2026 (NVIDIA), June 27, 2026 (AMD), and June 27, 2026 (Intel). NVIDIA interest income and interest expense are the other-income note. Intel interest income and interest expense are the interest-and-other note, which also holds the escrowed-share mark. AMD interest expense is the income-statement line. AMD interest income is not disclosed apart from other income, so it is not used. NVIDIA capex in the half is purchases of property, equipment, and intangibles. AMD capex is purchases of property and equipment. Intel capex is investing-section additions to property, plant, and equipment. None of these quarterly lines enter the five-year ratio tables or the Excel identities.", "body"))
     story.append(P("Limits", "h"))
     story.append(P("The latest columns are one month apart, not one year. Pairing NVIDIA FY26 with AMD or Intel FY26 would be wrong, because those peer years are not filed here.", "body"))
     story.append(P("Net debt leaves out current operating lease liabilities, which are inside accrued liabilities, and leaves out Intel's operating leases of about $0.4bn. It leaves out Intel's FY20 trading assets of $15.7bn because they are equity securities rather than cash or debt securities. It leaves NVIDIA's non-marketable equity securities inside net operating assets. Moving any of those choices would change operating ROA. The direction of the comparison would not change.", "body"))
     story.append(P("Intel's second equipment line, classified in financing, is disclosed and is not in the capex ratio. Adding it would make FY25 capex $17.7bn and the cash-flow coverage weaker.", "body"))
-    story.append(P("Audit fees, headcount, and a full five-year auditor-tenure check were not done. Market prices and the most recent quarter are not in this annual-report set, so they are not in the snapshot.", "body"))
+    story.append(P("Audit fees, headcount, and a full five-year auditor-tenure check were not done. Market prices are not in this filing set. The latest quarter is in section 8 and is not in the five-year snapshot or the DuPont identities.", "body"))
     story.append(P("This is analysis for study purposes. It is not investment advice, and I am not a financial advisor.", "body"))
     return story
 
